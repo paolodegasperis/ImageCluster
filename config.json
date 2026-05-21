@@ -1,0 +1,58 @@
+{
+  "host": "127.0.0.1",
+  "port": 8765,
+  "default_image_dir": "img",
+  "output_dir": "output",
+  "default_clip_model": "ViT-B-32",
+  "default_clip_pretrained": "laion2b_s34b_b79k",
+  "default_reducer": "umap",
+  "batch_size": 32,
+  "block_start_if_dependencies_missing": true,
+  "optional_clustering": {
+    "enabled_by_default": false,
+    "method": "kmeans",
+    "auto_min_k": 2,
+    "auto_max_k": 8,
+    "fixed_k": 5
+  },
+  "version": "0.5.3",
+  "default_model_key": "openclip_vit_b_32",
+  "available_model_families": [
+    "OpenCLIP",
+    "CLIP",
+    "SigLIP",
+    "SigLIP 2",
+    "MobileCLIP",
+    "MobileCLIP2",
+    "DINOv2",
+    "Nomic Embed Vision",
+    "ImageBind",
+    "MetaCLIP",
+    "MetaCLIP 2",
+    "HQ-CLIP",
+    "Long-CLIP",
+    "EVA-CLIP",
+    "CLOC",
+    "LACLIP"
+  ],
+  "semantic_search": {
+    "enabled": true,
+    "default_top_k": 30,
+    "default_threshold": null,
+    "save_search_results": true,
+    "highlight_results_on_plot": true
+  },
+  "startup_scripts": {
+    "windows_11_menu": "Start Windows 11.bat",
+    "windows_11_cpu": "Start Windows 11 CPU.bat",
+    "windows_11_cuda": "Start Windows 11 CUDA.bat",
+    "macos": "Start macOS.command",
+    "macos_apple_silicon": "Start macOS Apple Silicon.command"
+  },
+  "debug": {
+    "job_logs": true,
+    "json_debug_reports": true,
+    "system_debug_endpoint": "/api/debug/system",
+    "batch_retry": true
+  }
+}

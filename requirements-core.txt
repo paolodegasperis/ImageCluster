@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+pillow
+numpy
+pandas
+scikit-learn
+umap-learn
+open_clip_torch
+transformers
+huggingface_hub
+einops
+timm
+safetensors

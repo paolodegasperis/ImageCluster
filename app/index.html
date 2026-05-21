@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ImageCluster</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <main class="dashboard-shell">
+    <section class="dashboard-hero">
+      <p class="eyebrow">ImageCluster</p>
+      <h1>Visualize image collections</h1>
+      <p class="lead">Local embedding projections, semantic image search and model management for cultural heritage image collections.</p>
+    </section>
+
+    <section class="dashboard-status">
+      <div>
+        <p class="eyebrow">Image Directory</p>
+        <h2>img</h2>
+        <p id="dashboardImageDirStatus" class="small">Not scanned yet.</p>
+      </div>
+      <button class="secondary-action" id="dashboardScanImg">Scan img folder</button>
+    </section>
+
+    <section class="workflow-cards" aria-label="Workflows">
+      <a class="workflow-card primary-card" href="/clip">
+        <span class="card-label">Recommended</span>
+        <h2>Embedding guided workflow</h2>
+        <p>Choose an image-text model, generate a UMAP/t-SNE projection, search with natural language and export the results.</p>
+      </a>
+      <a class="workflow-card" href="/settings">
+        <span class="card-label">Configuration</span>
+        <h2>Models & tokens</h2>
+        <p>Manage the local Hugging Face token and compare model capabilities before launching a projection run.</p>
+      </a>
+    </section>
+
+    <section class="system-strip" id="statusPanel">
+      <div>
+        <p class="eyebrow">System</p>
+        <p id="statusText" class="small">Checking dependencies...</p>
+      </div>
+      <a class="secondary-link" href="/api/status" target="_blank" rel="noopener">Dependency status</a>
+      <div class="status-list compact" id="deps"></div>
+      <div id="installAdvice" class="install-advice" style="display:none"></div>
+    </section>
+  </main>
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

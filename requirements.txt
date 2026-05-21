@@ -1,0 +1,18 @@
+# Full manual requirements for ImagePlot-CLIP v5.2.2.
+# Non-technical users should start the app with one of the Start scripts instead.
+#
+# The launcher installs PyTorch separately because the correct wheel depends on
+# Windows CPU, Windows CUDA or macOS Apple Silicon/Intel.
+#
+# CPU example:
+#   python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#
+# Windows CUDA example:
+#   python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#
+# macOS example:
+#   python -m pip install torch torchvision
+
+torch
+torchvision
+-r requirements-core.txt
