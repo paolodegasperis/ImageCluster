@@ -1,5 +1,7 @@
 # ImageCluster
 
+[![DOI](https://zenodo.org/badge/1245869180.svg)](https://doi.org/10.5281/zenodo.20344849)
+
 ImageCluster is a local web application for analyzing digital image collections with visual embeddings, CLIP-like multimodal models, UMAP/t-SNE projection maps, optional clustering, and semantic text search.
 
 The goal of ImageCluster is to give non-technical users a practical interface for exploring image collections and comparing different embedding models on those collections.
