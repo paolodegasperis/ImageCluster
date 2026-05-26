@@ -1,4 +1,3 @@
-# Full manual requirements for ImagePlot-CLIP v5.2.2.
 # Non-technical users should start the app with one of the Start scripts instead.
 #
 # The launcher installs PyTorch separately because the correct wheel depends on
