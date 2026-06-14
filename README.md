@@ -14,7 +14,7 @@ ImageCluster is a local web application for exploring image collections through 
 
 ---
 
-## First launch (no technical knowledge required)
+## First launch
 
 ### Windows
 
@@ -36,7 +36,7 @@ ImageCluster is a local web application for exploring image collections through 
 
 ---
 
-## Guided workflow (step by step)
+## Guided workflow
 
 Once the app is open in the browser:
 
@@ -52,7 +52,7 @@ Once the app is open in the browser:
 
 ---
 
-## Optional models (advanced)
+## Optional models
 
 A few models need extra packages that are not installed by default because they are large and require a GPU. The main app works without them. After the first normal start, double-click the matching file in the project root:
 
@@ -114,7 +114,7 @@ Models marked *optional* require a separate installer (see above). Models shown 
 
 ---
 
-## Manual setup (technical users)
+## Manual setup 
 
 ```bash
 python -m venv .venv
@@ -164,3 +164,4 @@ Some models require accepting a license on Hugging Face before download. If a mo
 ## Version
 
 V-5.5 · June 2026
+This software was primarily developed using generative AI. It is intended for educational and research purposes only. It is not recommended for commercial or production use.
