@@ -1,141 +1,6 @@
-class ThumbnailCache {
-  constructor({ maxItems = 500, concurrency = 12 } = {}) {
-    this.maxItems = maxItems;
-    this.concurrency = concurrency;
-    this.items = new Map();
-    this.queue = [];
-    this.activeLoads = 0;
-    this.pinned = new Set();
-    this.onChange = null;
-    this.generation = 0;
-  }
-
-  get(path) {
-    const item = this.items.get(path);
-    if (item && item.status === 'loaded') item.lastUsed = performance.now();
-    return item || { status: 'unloaded', image: null };
-  }
-
-  request(path, priority = 0) {
-    if (!path) return;
-    const existing = this.items.get(path);
-    if (existing) {
-      existing.lastUsed = performance.now();
-      if (existing.status === 'queued' && priority > existing.priority) {
-        existing.priority = priority;
-        const queued = this.queue.find(item => item.path === path);
-        if (queued) queued.priority = priority;
-        this.queue.sort((a, b) => b.priority - a.priority || a.queuedAt - b.queuedAt);
-      }
-      if (existing.status === 'loaded' || existing.status === 'loading' || existing.status === 'failed') return;
-      if (existing.status === 'queued') {
-        this.pump();
-        this.notify();
-        return;
-      }
-    }
-    this.items.set(path, { status: 'queued', image: null, lastUsed: performance.now(), priority });
-    this.queue.push({ path, priority, queuedAt: performance.now() });
-    this.queue.sort((a, b) => b.priority - a.priority || a.queuedAt - b.queuedAt);
-    this.pump();
-    this.notify();
-  }
-
-  pin(path) {
-    if (path) this.pinned.add(path);
-  }
-
-  unpin(path) {
-    if (path) this.pinned.delete(path);
-  }
-
-  pump() {
-    while (this.activeLoads < this.concurrency && this.queue.length) {
-      const next = this.queue.shift();
-      const item = this.items.get(next.path);
-      if (!item || item.status !== 'queued') continue;
-      item.status = 'loading';
-      this.activeLoads += 1;
-      const generation = this.generation;
-      const img = new Image();
-      img.onload = () => {
-        if (generation !== this.generation) return;
-        item.status = 'loaded';
-        item.image = img;
-        item.lastUsed = performance.now();
-        this.activeLoads -= 1;
-        this.evict();
-        this.pump();
-        this.notify();
-        scheduleRender('thumbnail-loaded');
-      };
-      img.onerror = () => {
-        if (generation !== this.generation) return;
-        item.status = 'failed';
-        item.image = null;
-        item.lastUsed = performance.now();
-        this.activeLoads -= 1;
-        this.pump();
-        this.notify();
-        scheduleRender('thumbnail-failed');
-      };
-      img.src = imagePathToUrl(next.path);
-    }
-  }
-
-  evict(visiblePaths = new Set()) {
-    if (!visiblePaths.size && typeof state !== 'undefined' && state.visibleRows) {
-      visiblePaths = new Set(state.visibleRows.map(row => row.relative_path));
-    }
-    const loaded = [...this.items.entries()].filter(([, item]) => item.status === 'loaded');
-    if (loaded.length <= this.maxItems) return;
-    loaded
-      .filter(([path]) => !visiblePaths.has(path) && !this.pinned.has(path))
-      .sort((a, b) => a[1].lastUsed - b[1].lastUsed)
-      .slice(0, Math.max(0, loaded.length - this.maxItems))
-      .forEach(([path]) => this.items.delete(path));
-  }
-
-  clear() {
-    this.generation += 1;
-    this.items.clear();
-    this.queue = [];
-    this.activeLoads = 0;
-    this.pinned.clear();
-    this.notify();
-  }
-
-  stats() {
-    let loaded = 0;
-    let loading = this.activeLoads;
-    let failed = 0;
-    for (const item of this.items.values()) {
-      if (item.status === 'loaded') loaded += 1;
-      if (item.status === 'failed') failed += 1;
-    }
-    return { loaded, loading, queued: this.queue.length, failed, max: this.maxItems };
-  }
-
-  notify() {
-    if (this.onChange) this.onChange(this.stats());
-  }
-}
-
 const state = {
   rows: [],
-  scannedImageCount: null,
-  scannedFormats: {},
-  scanWarnings: [],
-  selectedModel: null,
-  currentJobStatus: 'ready',
-  projectionBounds: null,
-  transformDirty: true,
-  visibleRows: [],
-  spatialIndex: new Map(),
-  spatialCellSize: 72,
-  renderScheduled: false,
-  lastRenderReason: 'initial',
-  lastRenderStats: null,
+  images: new Map(),
   zoom: 1,
   panX: 0,
   panY: 0,
@@ -144,37 +9,63 @@ const state = {
   hover: null,
   mode: 'images',
   thumbSize: 48,
-  showThumbnailOutline: localStorage.getItem('projector.showThumbnailOutline') !== 'false',
-  forceThumbnails: localStorage.getItem('projector.forceThumbnails') === 'true',
+  showThumbnailOutline: localStorage.getItem('imagecluster.showThumbnailOutline') !== 'false',
   pointSize: 6,
   jobId: null,
   resultPath: null,
   polling: false,
+  scanCount: null,
+  modelReady: false,
   models: [],
-  showPlannedModels: localStorage.getItem('projector.showPlannedModels') === 'true',
+  showPlannedModels: localStorage.getItem('imagecluster.showPlannedModels') === 'true',
   searchResults: [],
   searchResultPaths: new Set(),
   lastSearchPayload: null,
   highlightSearch: true,
   showOnlySearch: false,
-  searchThumbSize: Number(localStorage.getItem('projector.searchThumbSize') || 160),
-  previewPath: null,
-  filters: { cluster: '', filename: '', path: '', subfolder: '', scoreMin: '', scoreMax: '' },
-  lastClusterReport: null,
-  lastComparison: null,
-  analysisProjections: [],
-  sessions: [],
+  searchThumbSize: Number(localStorage.getItem('imagecluster.searchThumbSize') || 160),
+  selectedCluster: '',
+  highlightCluster: true,
+  showOnlyCluster: false,
+  clusterThumbSize: Number(localStorage.getItem('imagecluster.clusterThumbSize') || 160),
 };
 
-const thumbnailCache = new ThumbnailCache({ maxItems: 500, concurrency: 12 });
-thumbnailCache.onChange = () => updateThumbnailStatus();
+const CLUSTER_PALETTE = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
-const CLUSTER_PALETTE = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#a29bfe', '#fd79a8', '#74b9ff', '#55efc4', '#fab1a0', '#c7ecee', '#badc58'];
+// Level-of-detail thresholds: above LOD_THUMB_MIN_ROWS images, the canvas shows colored
+// points until the zoom reaches LOD_THUMB_ZOOM, then switches to thumbnails.
+const LOD_THUMB_MIN_ROWS = 500;
+const LOD_THUMB_ZOOM = 2;
+// Source width (px) of canvas thumbnails fetched from /api/thumb — small enough to keep
+// decoded image memory low, large enough for crisp rendering on HiDPI displays.
+const CANVAS_THUMB_WIDTH = 192;
 
 const $ = id => document.getElementById(id);
 const canvas = $('plot');
 const ctx = canvas.getContext('2d');
 const has = id => Boolean($(id));
+let resizeFrame = null;
+// Perf caches: data bounds are constant per projection, and the canvas rect only
+// changes on resize/scroll — recomputing either per point made draw()/findHover() O(n²)
+// with thousands of forced reflows per frame. draw() is also rAF-coalesced via scheduleDraw().
+let boundsCache = null;
+let plotRect = null;
+let drawScheduled = false;
+
+function refreshPlotRect() {
+  plotRect = canvas.getBoundingClientRect();
+  return plotRect;
+}
+
+function currentRect() {
+  return plotRect || refreshPlotRect();
+}
+
+function scheduleDraw() {
+  if (drawScheduled) return;
+  drawScheduled = true;
+  requestAnimationFrame(() => { drawScheduled = false; draw(); });
+}
 
 function setText(id, value) {
   const el = $(id);
@@ -188,10 +79,6 @@ function setHTML(id, value) {
   el.innerHTML = value;
 }
 
-function imagePathToUrl(path) {
-  return `/${path}`;
-}
-
 function showElement(id, display = 'block') {
   const el = $(id);
   if (!el) return;
@@ -202,6 +89,18 @@ function hideElement(id) {
   const el = $(id);
   if (!el) return;
   el.style.display = 'none';
+}
+
+function selectDockPane(name, expand = false) {
+  document.querySelectorAll('[data-dock-tab]').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.dockTab === name);
+  });
+  const cluster = $('clusterPanel');
+  const search = $('searchDockPane');
+  if (cluster) cluster.classList.toggle('active', name === 'cluster');
+  if (search) search.classList.toggle('active', name === 'search');
+  const dock = document.getElementById('projectionDock');
+  if (dock && expand) dock.classList.add('is-expanded');
 }
 
 async function apiJson(url, options) {
@@ -218,13 +117,20 @@ async function loadStatus() {
   try {
     const data = await apiJson('/api/status');
     const missing = (data.dependencies || []).filter(d => d.required && !d.installed);
+    if (has('topbarStatusChip')) {
+      setText('topbarStatusChip', missing.length ? 'Setup needed' : 'System ready');
+      $('topbarStatusChip').className = missing.length ? 'chip chip-danger dot' : 'chip chip-success dot';
+    }
     if (has('systemStatus')) {
-      setText('systemStatus', missing.length ? `Missing dependencies: ${missing.map(d => d.name).join(', ')}` : 'System ready.');
-      $('systemStatus').className = missing.length ? 'status-chip small danger' : 'status-chip small ok';
-      renderInstallAdvice(missing.length ? data.install_advice : null);
+      setText('systemStatus', missing.length ? 'setup needed' : '0 imgs');
+      $('systemStatus').className = missing.length ? 'small danger' : 'small ok';
     }
     if (missing.length && has('startBtn')) $('startBtn').disabled = true;
   } catch (err) {
+    if (has('topbarStatusChip')) {
+      setText('topbarStatusChip', 'Status unknown');
+      $('topbarStatusChip').className = 'chip chip-warn dot';
+    }
     setText('systemStatus', `Cannot read system status: ${err.message}`);
   }
 }
@@ -233,6 +139,9 @@ async function loadModels() {
   try {
     const data = await apiJson('/api/models');
     state.models = data.models || [];
+    // Stable 1-based number per model (registry order), surfaced in the model list and
+    // referenced compactly in the search bar ("mod N") so a long label never bloats the bar.
+    state.models.forEach((m, i) => { m._num = i + 1; });
     renderModelOptions();
     updateModelInfo();
   } catch (err) {
@@ -240,21 +149,10 @@ async function loadModels() {
   }
 }
 
-function isImageOnlyProjectionModel(model) {
-  return Boolean(model && model.supports_image_embedding && model.supports_projection && !model.supports_text_search);
-}
-
-function modelOptionLabel(model) {
-  const label = model.label || model.key;
-  if (!isImageOnlyProjectionModel(model)) return label;
-  return label.toLowerCase().includes('image only') ? label : `${label} (image only)`;
-}
-
 function renderModelOptions() {
   const select = $('modelKey');
   if (!select) return;
   const previousValue = select.value;
-  const requestedValue = new URLSearchParams(window.location.search).get('model');
   const models = state.models.filter(m => {
     if (m.supports_image_embedding && m.supports_projection && m.status !== 'planned') return true;
     return state.showPlannedModels && m.status === 'planned';
@@ -264,171 +162,132 @@ function renderModelOptions() {
     const suffix = m.status === 'planned'
       ? ' (planned)'
       : (disabled ? ` (${m.status || 'unavailable'})` : (m.status === 'experimental' ? ' (experimental)' : ''));
-    return `<option value="${escapeHtml(m.key)}" ${m.default ? 'selected' : ''} ${disabled ? 'disabled' : ''}>${escapeHtml(modelOptionLabel(m))}${escapeHtml(suffix)}</option>`;
+    return `<option value="${escapeHtml(m.key)}" ${m.default ? 'selected' : ''} ${disabled ? 'disabled' : ''}>${m._num}. ${escapeHtml(m.label)}${escapeHtml(suffix)}</option>`;
   }).join('');
-  if (requestedValue && [...select.options].some(option => option.value === requestedValue && !option.disabled)) {
-    select.value = requestedValue;
-  } else if (previousValue && [...select.options].some(option => option.value === previousValue && !option.disabled)) {
+  if (previousValue && [...select.options].some(option => option.value === previousValue && !option.disabled)) {
     select.value = previousValue;
   }
+  renderModelOptionCards(models);
+  updateModelOptionSelection();
+}
+
+function renderModelOptionCards(models) {
+  if (!has('modelOptionList')) return;
+  const visibleModels = models.slice(0, 3);
+  setHTML('modelOptionList', visibleModels.map(model => {
+    const disabled = model.status === 'unavailable' || (model.status !== 'planned' && (!model.available || !model.supports_image_embedding || !model.supports_projection));
+    const checked = has('modelKey') && $('modelKey').value === model.key;
+    const provider = model.provider || model.family || 'local';
+    const dim = model.embedding_dim ? `${model.embedding_dim} dim` : '';
+    return `
+      <button class="model-opt-card ${checked ? 'selected' : ''}" type="button" data-model-option="${escapeHtml(model.key)}" ${disabled ? 'disabled' : ''}>
+        <span class="model-radio" aria-hidden="true"></span>
+        <span class="model-opt-copy">
+          <strong><span class="model-num">mod ${model._num}</span>${escapeHtml(model.label)}</strong>
+          <span>${escapeHtml(provider)}${dim ? ` - ${escapeHtml(dim)}` : ''}</span>
+        </span>
+      </button>
+    `;
+  }).join(''));
+  document.querySelectorAll('[data-model-option]').forEach(button => {
+    button.addEventListener('click', () => {
+      if (!has('modelKey')) return;
+      $('modelKey').value = button.dataset.modelOption;
+      updateModelInfo();
+    });
+  });
+}
+
+function updateModelOptionSelection() {
+  if (!has('modelKey')) return;
+  document.querySelectorAll('[data-model-option]').forEach(button => {
+    button.classList.toggle('selected', button.dataset.modelOption === $('modelKey').value);
+  });
 }
 
 function updateModelInfo() {
   if (!has('modelKey') || !has('modelInfo')) return;
   const selected = state.models.find(m => m.key === $('modelKey').value);
-  state.selectedModel = selected || null;
   if (!selected) { setText('modelInfo', ''); return; }
   const missing = selected.missing_requirements && selected.missing_requirements.length ? `missing: ${selected.missing_requirements.join(', ')}` : '';
-  renderModelBadges(selected);
-  const searchText = selected.supports_text_search
-    ? 'It can also run semantic text search after embeddings are available.'
-    : 'It can create image projections but cannot process text queries.';
-  const availabilityText = selected.status === 'planned'
-    ? 'Planned roadmap model: not yet available for local projection.'
-    : (selected.status === 'experimental' ? 'Experimental model: first use may download weights and may be slower.' : 'Available for the standard projection workflow.');
-  const parts = [selected.description || selected.family, searchText, availabilityText, missing, selected.notes || ''];
-  setText('modelInfo', parts.filter(Boolean).join(' '));
+  const labels = [
+    selected.default ? 'Recommended' : '',
+    selected.recommended_for && selected.recommended_for.includes('fast') ? 'Fast' : '',
+    selected.status === 'experimental' ? 'Experimental' : '',
+    selected.hardware_tier === 'gpu_recommended' || selected.hardware_tier === 'large_gpu' ? 'Requires GPU' : '',
+    selected.supports_text_search ? 'Text search supported' : 'Projection only',
+  ].filter(Boolean).join(' · ');
+  const parts = [selected.family, labels, selected.published ? `published ${selected.published}` : '', selected.provider ? `provider ${selected.provider}` : '', missing, selected.notes || selected.description || ''];
+  setText('modelInfo', parts.filter(Boolean).join(' · '));
+  setText('workflowModelShort', selected.family || selected.label || 'Model');
   if (has('batchSize') && selected.recommended_batch_size) $('batchSize').value = selected.recommended_batch_size;
+  updateModelOptionSelection();
   updateProjectionCapability(selected);
   updateSearchCapability();
-  updateWorkflowState();
-}
-
-function renderModelBadges(model) {
-  if (!has('modelBadges')) return;
-  const badges = [];
-  if (model.default) badges.push(['Recommended', 'good']);
-  if (model.recommended_for && model.recommended_for.includes('fast')) badges.push(['Fast', 'good']);
-  if (model.hardware_tier === 'cpu_ok') badges.push(['CPU-friendly', 'good']);
-  if (model.hardware_tier === 'gpu_recommended' || model.hardware_tier === 'large_gpu') badges.push(['GPU recommended', 'warn']);
-  if (model.supports_text_search) badges.push(['Supports semantic search', 'good']);
-  if (!model.supports_text_search) badges.push(['Image-only', 'neutral']);
-  if (model.status === 'experimental') badges.push(['Experimental', 'warn']);
-  if (model.status === 'planned') badges.push(['Planned', 'danger']);
-  if (model.status === 'unavailable' || !model.available) badges.push(['Unavailable', 'danger']);
-  setHTML('modelBadges', badges.map(([text, kind]) => `<span class="capability-badge ${kind}">${escapeHtml(text)}</span>`).join(''));
 }
 
 function updateProjectionCapability(selected) {
-  if (!has('startBtn')) return false;
+  if (!has('startBtn')) return;
   const canProject = Boolean(
     selected &&
     selected.status !== 'planned' &&
     selected.status !== 'unavailable' &&
     selected.available &&
     selected.supports_image_embedding &&
-    selected.supports_projection &&
-    Number(state.scannedImageCount) > 0 &&
-    !state.polling
+    selected.supports_projection
   );
+  state.modelReady = canProject;
   $('startBtn').disabled = !canProject;
-  if (canProject || !selected) return canProject;
-  if (!Number(state.scannedImageCount)) {
-    setText('generateHint', 'Scan the img folder and make sure at least one supported image is available.');
-    return canProject;
-  }
+  updateWorkflowState();
+  if (canProject || !selected) return;
   if (selected.status === 'planned') {
-    setText('generateHint', `${selected.label} is planned and not wired to a verified local loader yet.`);
+    setJobText(`${selected.label} is planned and not wired to a verified local loader yet.`);
   } else if (selected.status === 'unavailable') {
-    setText('generateHint', `${selected.label} is unavailable: ${selected.notes || 'missing local support.'}`);
+    setJobText(`${selected.label} is unavailable: ${selected.notes || 'missing local support.'}`);
   } else if (!selected.available) {
     const missingReqs = selected.missing_requirements && selected.missing_requirements.length ? selected.missing_requirements.join(', ') : 'runtime requirements';
-    setText('generateHint', `${selected.label} cannot run until these requirements are available: ${missingReqs}.`);
+    setJobText(`${selected.label} cannot run until these requirements are available: ${missingReqs}.`);
   } else {
-    setText('generateHint', `${selected.label} does not support image projection.`);
+    setJobText(`${selected.label} does not support image projection.`);
   }
-  return canProject;
 }
 
-function canUseSelectedModel() {
-  const model = state.selectedModel;
-  return Boolean(
-    model &&
-    model.status !== 'planned' &&
-    model.status !== 'unavailable' &&
-    model.available &&
-    model.supports_image_embedding &&
-    model.supports_projection
-  );
+// Run state machine (CODEX_GUIDE §7): idle → scanned → ready → running → done.
+// Drives the left-rail step badges (number → active ink → done green-check). #startBtn
+// enablement stays governed by model capability so the backend's own img scan still works
+// without forcing an explicit scan first.
+function computeRunState() {
+  if (state.polling) return 'running';
+  if (state.rows.length) return 'done';
+  const scanned = Number.isFinite(state.scanCount) && state.scanCount > 0;
+  if (scanned && state.modelReady) return 'ready';
+  if (scanned) return 'scanned';
+  return 'idle';
+}
+
+function setStepState(section, num, done, active) {
+  if (!section) return;
+  section.classList.toggle('done', done);
+  section.classList.toggle('active', active);
+  const badge = section.querySelector('.num');
+  if (badge) {
+    badge.className = 'num';
+    badge.textContent = done ? '✓' : String(num);
+  }
 }
 
 function updateWorkflowState() {
-  const model = state.selectedModel || (has('modelKey') ? state.models.find(m => m.key === $('modelKey').value) : null);
-  const imageCount = Number.isFinite(Number(state.scannedImageCount)) ? Number(state.scannedImageCount) : null;
-  const hasImages = imageCount !== null && imageCount > 0;
-  const hasProjection = state.rows.length > 0;
-  const searchReady = Boolean(model && model.supports_text_search && model.available && hasProjection);
-  const canGenerate = Boolean(hasImages && canUseSelectedModel() && !state.polling);
-
-  if (has('startBtn')) $('startBtn').disabled = !canGenerate;
-  if (has('cancelBtn')) $('cancelBtn').disabled = !state.polling;
-  if (has('exportPngBtn')) $('exportPngBtn').disabled = !hasProjection;
-  if (has('downloadBtn')) $('downloadBtn').disabled = !hasProjection || !state.resultPath;
-  if (has('resetViewBtn')) $('resetViewBtn').disabled = !hasProjection;
-  if (has('fitDataBtn')) $('fitDataBtn').disabled = !hasProjection;
-  if (has('toggleModeBtn')) $('toggleModeBtn').disabled = !hasProjection;
-  if (has('clearSearchFilterBtn')) $('clearSearchFilterBtn').disabled = !state.searchResultPaths.size && !state.showOnlySearch;
-  if (has('clusterReportBtn')) $('clusterReportBtn').disabled = !hasProjection;
-  if (has('exportHtmlBtn')) $('exportHtmlBtn').disabled = !hasProjection;
-
-  if (has('searchBtn')) $('searchBtn').disabled = !searchReady;
-  if (has('buildIndexBtn')) $('buildIndexBtn').disabled = !(model && model.supports_text_search && model.available && !state.polling);
-  if (has('semanticSearchPanel')) $('semanticSearchPanel').classList.toggle('disabled-panel', !(model && model.supports_text_search && model.available));
-
-  renderGenerationSummary(model, imageCount);
-  renderSessionSummary(model, imageCount);
-  renderGenerateHint(model, imageCount, canGenerate);
-  updateFilterSummary();
-}
-
-function renderGenerationSummary(model, imageCount) {
-  if (!has('generationSummary')) return;
-  const rows = [
-    ['Images', imageCount === null ? 'Scan needed' : `${imageCount} found`],
-    ['Model', model ? model.label : 'Not selected'],
-    ['Projection', has('reducer') ? $('reducer').value.toUpperCase() : 'UMAP'],
-    ['Clustering', has('clusterEnabled') && $('clusterEnabled').checked ? 'Enabled' : 'Disabled'],
-    ['Semantic search', model && model.supports_text_search ? 'Available after embeddings' : 'Not available for this model'],
-  ];
-  setHTML('generationSummary', rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join(''));
-}
-
-function renderGenerateHint(model, imageCount, canGenerate) {
-  if (!has('generateHint')) return;
-  if (state.polling) {
-    setText('generateHint', 'A projection job is already running. You can cancel it before starting another.');
-  } else if (canGenerate) {
-    setText('generateHint', 'Ready to generate the projection graph.');
-  } else if (imageCount === null) {
-    setText('generateHint', 'Scan the img folder before generating a projection.');
-  } else if (imageCount < 1) {
-    setText('generateHint', 'No supported images were found. Add images to img and scan again.');
-  } else if (!model) {
-    setText('generateHint', 'Choose an embedding model.');
-  } else if (model.status === 'planned') {
-    setText('generateHint', 'This planned roadmap model is not yet available for local projection.');
-  } else if (!model.available) {
-    const missing = model.missing_requirements && model.missing_requirements.length ? model.missing_requirements.join(', ') : 'required packages';
-    setText('generateHint', `This model is unavailable until ${missing} are installed.`);
-  } else {
-    setText('generateHint', 'The selected model cannot generate image projections.');
+  const runState = computeRunState();
+  const steps = document.querySelectorAll('.left-rail .step');
+  if (steps.length >= 3) {
+    const folderDone = ['scanned', 'ready', 'running', 'done'].includes(runState);
+    const modelDone = ['ready', 'running', 'done'].includes(runState);
+    const projectionDone = runState === 'done';
+    setStepState(steps[0], 1, folderDone, !folderDone);
+    setStepState(steps[1], 2, modelDone, folderDone && !modelDone);
+    setStepState(steps[2], 3, projectionDone, modelDone && !projectionDone);
   }
-}
-
-function renderSessionSummary(model, imageCount) {
-  setText('summaryImages', imageCount === null ? 'Not scanned' : `${imageCount} image(s)`);
-  setText('summaryModel', model ? `${model.label} (${model.key})` : 'Not selected');
-  setText('summaryCapability', model ? (model.supports_text_search ? 'Projection + text search' : 'Projection only') : 'Unknown');
-  setText('summaryReducer', has('reducer') ? $('reducer').value.toUpperCase() : 'UMAP');
-  setText('summaryClustering', has('clusterEnabled') && $('clusterEnabled').checked ? 'Enabled' : 'Disabled');
-  setText('summaryJob', state.currentJobStatus || 'Ready');
-  setText('summaryOutput', state.resultPath || 'None');
-  const searchText = state.lastSearchPayload
-    ? `${state.searchResults.length} result(s)`
-    : (model && model.supports_text_search ? 'Available after projection' : 'Not available');
-  setText('summarySearch', searchText);
-  setText('summaryReducerDrawer', has('reducer') ? $('reducer').value.toUpperCase() : 'UMAP');
-  setText('summaryClusteringDrawer', has('clusterEnabled') && $('clusterEnabled').checked ? 'Enabled' : 'Disabled');
+  document.body.dataset.runState = runState;
 }
 
 async function loadProjectionList() {
@@ -447,52 +306,32 @@ async function loadProjectionList() {
 
 async function scanImages() {
   setText('imageDirStatus', 'Scanning img folder...');
-  state.scannedImageCount = null;
-  state.scannedFormats = {};
-  state.scanWarnings = [];
-  updateWorkflowState();
   try {
     const data = await apiJson('/api/images/scan?image_dir=img');
     if (!data.ok) {
-      state.scannedImageCount = 0;
-      state.scanWarnings = [data.error || 'The img folder could not be scanned.'];
       setText('imageDirStatus', data.error || 'The img folder could not be scanned.');
-      updateWorkflowState();
       return;
     }
-    state.scannedImageCount = data.count || 0;
-    state.scannedFormats = data.extensions || {};
-    state.scanWarnings = [...(data.warnings || [])];
-    if (state.scannedImageCount > 1000) {
-      state.scanWarnings.push('Large collection: projection and thumbnails may take longer.');
-    }
-    const formats = Object.keys(state.scannedFormats).length ? ` Formats: ${Object.keys(state.scannedFormats).join(', ')}.` : '';
-    const warning = state.scanWarnings.length ? ` ${state.scanWarnings.join(' ')}` : '';
-    setText('imageDirStatus', `${state.scannedImageCount} image(s) found in img.${formats}${warning}`);
-  } catch (err) {
-    state.scannedImageCount = 0;
-    state.scanWarnings = [err.message];
-    setText('imageDirStatus', `Scan error: ${err.message}`);
-  } finally {
+    const warning = data.warnings && data.warnings.length ? ` ${data.warnings.join(' ')}` : '';
+    state.scanCount = data.count || 0;
+    setText('imageDirStatus', `${data.count || 0} image(s) found in img.${warning}`);
+    if (has('imageDirStatus')) $('imageDirStatus').className = `status-banner ${state.scanCount > 0 ? 'ok' : 'warn'}`;
+    if (has('workflowImageCount')) setText('workflowImageCount', `${state.scanCount} imgs`);
     updateWorkflowState();
+  } catch (err) {
+    setText('imageDirStatus', `Scan error: ${err.message}`);
   }
 }
 
 async function startJob() {
-  if (!updateProjectionCapability(state.selectedModel)) {
-    updateWorkflowState();
-    return;
-  }
   setBusy(true);
-  state.currentJobStatus = 'starting';
   setHTML('jobLinks', '');
   if (has('downloadBtn')) $('downloadBtn').disabled = true;
   if (has('cancelBtn')) $('cancelBtn').disabled = false;
   state.rows = [];
   clearSearch(false);
   state.resultPath = null;
-  updateWorkflowState();
-  scheduleRender('job-start');
+  draw();
   const payload = {
     image_dir: 'img',
     model_key: has('modelKey') ? $('modelKey').value : 'openclip_vit_b_32',
@@ -520,14 +359,11 @@ async function startJob() {
     });
     state.jobId = data.job_id;
     state.polling = true;
-    state.currentJobStatus = 'queued';
     updateWorkflowState();
     pollJob();
   } catch (err) {
     setJobText(`Failed to start job: ${err.message}`);
-    state.currentJobStatus = 'failed';
     setBusy(false);
-    updateWorkflowState();
   }
 }
 
@@ -545,13 +381,11 @@ async function pollJob() {
   if (!state.jobId || !state.polling) return;
   try {
     const job = await apiJson(`/api/jobs/${state.jobId}`);
-    state.currentJobStatus = job.status || 'running';
     const pct = job.total > 0 ? Math.round((job.done / job.total) * 100) : 0;
     if (has('progressBar')) $('progressBar').style.width = `${pct}%`;
     setJobText(`${job.status} · ${job.stage} · ${job.done || 0}/${job.total || 0} · ${job.message || ''}`);
     if (job.status === 'completed') {
       state.polling = false;
-      state.currentJobStatus = 'completed';
       state.resultPath = job.result_path;
       setBusy(false);
       if (has('downloadBtn')) $('downloadBtn').disabled = false;
@@ -559,12 +393,10 @@ async function pollJob() {
       renderJobDebugLinks(null);
       await loadResult();
       await loadProjectionList();
-      updateWorkflowState();
       return;
     }
-    if (job.status === 'failed' || job.status === 'cancelled' || job.status === 'interrupted') {
+    if (job.status === 'failed' || job.status === 'cancelled') {
       state.polling = false;
-      state.currentJobStatus = job.status;
       setBusy(false);
       if (has('cancelBtn')) $('cancelBtn').disabled = true;
       setJobText(`${job.status} · ${job.recovery_hint || job.error || job.message}`);
@@ -572,14 +404,11 @@ async function pollJob() {
       updateWorkflowState();
       return;
     }
-    updateWorkflowState();
     setTimeout(pollJob, 1000);
   } catch (err) {
     state.polling = false;
-    state.currentJobStatus = 'failed';
     setBusy(false);
     setJobText(`Job status error: ${err.message}`);
-    updateWorkflowState();
   }
 }
 
@@ -606,200 +435,154 @@ async function ingestRows(rows, resultPath, jobId) {
     cluster_k: parseOptionalNumber(r.cluster_k),
     cluster_score: parseOptionalNumber(r.cluster_score),
   })).filter(r => Number.isFinite(r.x) && Number.isFinite(r.y));
-  prepareProjectionCache();
-  thumbnailCache.clear();
+  boundsCache = null;
+  preloadImages();
   syncSearchWithRows();
-  applyAdaptiveDisplayMode();
   resetView(false);
   setJobText(`Loaded ${state.rows.length} projected images${resultPath ? ` · ${resultPath}` : ''}.`);
-  if (has('downloadBtn')) $('downloadBtn').disabled = !state.resultPath;
-  updateFilterOptions();
+  if (has('downloadBtn')) $('downloadBtn').disabled = !state.jobId;
+  updateRunSummary();
+  renderClusterGallery();
+  renderPlotLegend();
   updateWorkflowState();
-  scheduleRender('projection-loaded');
+  draw();
 }
 
-async function preloadImages() {
-  // Kept as a compatibility hook. Canvas thumbnails are now loaded lazily.
-  requestVisibleThumbnails(2);
-}
-
-function prepareProjectionCache() {
-  state.projectionBounds = computeProjectionBounds(state.rows);
+function preloadImages() {
+  // Non-blocking + progressive: with LOD the canvas can render colored points immediately,
+  // and each thumbnail repaints (coalesced) as it arrives. Awaiting all thumbnails up front
+  // would freeze the first paint for seconds (cold thumbnail cache = one resize per image).
+  state.images.clear();
   for (const row of state.rows) {
-    if (!state.projectionBounds) continue;
-    const rangeX = state.projectionBounds.maxX - state.projectionBounds.minX || 1;
-    const rangeY = state.projectionBounds.maxY - state.projectionBounds.minY || 1;
-    row._normX = (row.x - state.projectionBounds.minX) / rangeX;
-    row._normY = (row.y - state.projectionBounds.minY) / rangeY;
-    row._screenX = 0;
-    row._screenY = 0;
-  }
-  markTransformDirty();
-}
-
-function computeProjectionBounds(points) {
-  if (!points.length) return { minX: -1, maxX: 1, minY: -1, maxY: 1 };
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const point of points) {
-    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-    minX = Math.min(minX, point.x);
-    maxX = Math.max(maxX, point.x);
-    minY = Math.min(minY, point.y);
-    maxY = Math.max(maxY, point.y);
-  }
-  if (!Number.isFinite(minX)) return { minX: -1, maxX: 1, minY: -1, maxY: 1 };
-  return { minX, maxX, minY, maxY };
-}
-
-function markTransformDirty() {
-  state.transformDirty = true;
-}
-
-function applyAdaptiveDisplayMode() {
-  if (state.rows.length > 500 && !state.forceThumbnails && state.mode === 'images') {
-    state.mode = 'points';
-  }
-  updateModeButton();
-}
-
-function updateModeButton() {
-  if (has('toggleModeBtn')) {
-    $('toggleModeBtn').textContent = `Mode: ${state.mode === 'images' ? 'thumbnails' : 'points'}`;
+    const img = new Image();
+    img.onload = () => { state.images.set(row.relative_path, img); scheduleDraw(); };
+    img.onerror = () => {};
+    img.src = thumbUrl(row, CANVAS_THUMB_WIDTH);
   }
 }
 
 function resizeCanvas() {
-  const rect = canvas.getBoundingClientRect();
+  const rect = refreshPlotRect();
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-  canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+  const width = Math.max(1, Math.floor(rect.width * dpr));
+  const height = Math.max(1, Math.floor(rect.height * dpr));
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  markTransformDirty();
-  scheduleRender('resize');
+  draw();
+}
+
+function scheduleResizeCanvas() {
+  if (resizeFrame) cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = null;
+    resizeCanvas();
+  });
 }
 
 function bounds() {
-  return state.projectionBounds || computeProjectionBounds(state.rows);
+  if (boundsCache) return boundsCache;
+  if (!state.rows.length) {
+    boundsCache = { minX: -1, maxX: 1, minY: -1, maxY: 1 };
+    return boundsCache;
+  }
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const r of state.rows) {
+    if (Number.isFinite(r.x)) { if (r.x < minX) minX = r.x; if (r.x > maxX) maxX = r.x; }
+    if (Number.isFinite(r.y)) { if (r.y < minY) minY = r.y; if (r.y > maxY) maxY = r.y; }
+  }
+  boundsCache = { minX, maxX, minY, maxY };
+  return boundsCache;
 }
 
 function baseProject(row) {
-  const rect = canvas.getBoundingClientRect();
+  const rect = currentRect();
+  const b = bounds();
   const pad = 0.08;
-  const nx = Number.isFinite(row._normX) ? row._normX : 0.5;
-  const ny = Number.isFinite(row._normY) ? row._normY : 0.5;
-  const x = 72 + ((nx + pad) / (1 + pad * 2)) * (rect.width - 144);
-  const y = rect.height - 62 - ((ny + pad) / (1 + pad * 2)) * (rect.height - 122);
+  const rangeX = b.maxX - b.minX || 1;
+  const rangeY = b.maxY - b.minY || 1;
+  const x = 72 + ((row.x - b.minX + rangeX * pad) / (rangeX * (1 + pad * 2))) * (rect.width - 144);
+  const y = rect.height - 62 - ((row.y - b.minY + rangeY * pad) / (rangeY * (1 + pad * 2))) * (rect.height - 122);
   return { x, y };
 }
 
 function project(row) {
-  const rect = canvas.getBoundingClientRect();
+  const rect = currentRect();
   const p = baseProject(row);
   const cx = rect.width / 2;
   const cy = rect.height / 2;
   return { x: cx + (p.x - cx) * state.zoom + state.panX, y: cy + (p.y - cy) * state.zoom + state.panY };
 }
 
-function scheduleRender(reason = 'update') {
-  state.lastRenderReason = reason;
-  if (state.renderScheduled) return;
-  state.renderScheduled = true;
-  requestAnimationFrame(() => {
-    state.renderScheduled = false;
-    draw();
-  });
-}
-
-function updateProjectionTransform() {
-  if (!state.transformDirty) return;
-  const rect = canvas.getBoundingClientRect();
-  const cx = rect.width / 2;
-  const cy = rect.height / 2;
-  const pad = 0.08;
-  for (const row of state.rows) {
-    const nx = Number.isFinite(row._normX) ? row._normX : 0.5;
-    const ny = Number.isFinite(row._normY) ? row._normY : 0.5;
-    const baseX = 72 + ((nx + pad) / (1 + pad * 2)) * (rect.width - 144);
-    const baseY = rect.height - 62 - ((ny + pad) / (1 + pad * 2)) * (rect.height - 122);
-    row._screenX = cx + (baseX - cx) * state.zoom + state.panX;
-    row._screenY = cy + (baseY - cy) * state.zoom + state.panY;
-  }
-  rebuildSpatialIndex();
-  state.transformDirty = false;
-}
-
 function draw() {
-  const started = performance.now();
-  const rect = canvas.getBoundingClientRect();
-  updateProjectionTransform();
-  ctx.clearRect(0, 0, rect.width, rect.height);
-  ctx.fillStyle = '#f1efe8';
+  updatePlotStatus();
+  const rect = refreshPlotRect();
+  const dpr = window.devicePixelRatio || 1;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#f6f4ef';
   ctx.fillRect(0, 0, rect.width, rect.height);
   drawGrid(rect);
 
   if (!state.rows.length) {
-    ctx.fillStyle = 'rgba(21,23,26,0.82)';
-    ctx.font = '15px Inter, Arial';
+    ctx.fillStyle = '#15171a';
+    ctx.font = '15px Geist, Arial';
     ctx.fillText('Add images to img, then generate an embedding projection.', 82, 82);
-    ctx.fillStyle = 'rgba(21,23,26,0.56)';
-    ctx.font = '12px Inter, Arial';
+    ctx.fillStyle = '#7A7C85';
+    ctx.font = '12px Geist, Arial';
     ctx.fillText('Images are read from the project img folder. The final plot remains interactive.', 82, 106);
     return;
   }
 
-  const visibleRows = getVisibleRows(rect);
-  state.visibleRows = visibleRows;
-  let drawnThumbs = 0;
-  let drawnPoints = 0;
-  const shouldUseThumbs = shouldRenderThumbnails();
+  const searchFilteredRows = state.showOnlySearch && state.searchResultPaths.size
+    ? state.rows.filter(row => state.searchResultPaths.has(row.relative_path))
+    : state.rows;
+  const visibleRows = state.showOnlyCluster && state.selectedCluster
+    ? searchFilteredRows.filter(row => String(row.cluster) === String(state.selectedCluster))
+    : searchFilteredRows;
 
+  // LOD: on large datasets, draw cheap colored points when zoomed out and switch to
+  // thumbnails only when zoomed in (where few points are visible). Small datasets keep
+  // thumbnails at every zoom. Point mode (toggled by the user) always draws points.
+  const lodActive = state.rows.length > LOD_THUMB_MIN_ROWS;
+  const showThumbs = state.mode === 'images' && (!lodActive || state.zoom >= LOD_THUMB_ZOOM);
+  const cullMargin = (showThumbs ? state.thumbSize : state.pointSize * 2) + 24;
   for (const row of visibleRows) {
-    const p = { x: row._screenX, y: row._screenY };
+    const p = project(row);
+    // Viewport culling: skip points outside the canvas (+margin). Invisible to the user,
+    // but at high zoom/pan it avoids drawing the off-screen majority of the dataset.
+    if (p.x < -cullMargin || p.x > rect.width + cullMargin || p.y < -cullMargin || p.y > rect.height + cullMargin) continue;
     const clusterColor = getClusterColor(row);
     const isSearchResult = state.searchResultPaths.has(row.relative_path);
+    const isSelectedCluster = state.selectedCluster && String(row.cluster) === String(state.selectedCluster);
     if (state.highlightSearch && state.searchResultPaths.size && !isSearchResult) ctx.globalAlpha = 0.22;
-    if (state.mode === 'images' && (shouldUseThumbs || isSearchResult || state.hover === row)) {
-      const cached = thumbnailCache.get(row.relative_path);
-      const img = cached.image;
-      if (clusterColor && state.showThumbnailOutline) drawClusterHalo(p.x, p.y, clusterColor);
-      if (img) {
-        drawImageThumb(img, p.x, p.y);
-        drawnThumbs += 1;
-      } else {
-        drawThumbnailPlaceholder(p.x, p.y, clusterColor);
-        drawnPoints += 1;
-      }
+    if (state.selectedCluster && !isSelectedCluster) ctx.globalAlpha = Math.min(ctx.globalAlpha, state.showOnlyCluster ? 0.12 : 0.30);
+    if (showThumbs) {
+      const img = state.images.get(row.relative_path);
+      if (clusterColor && state.showThumbnailOutline) drawClusterFrame(p.x, p.y, clusterColor);
+      if (img) drawImageThumb(img, p.x, p.y, clusterColor);
+      else drawPointBox(p.x, p.y, clusterColor);
     } else {
-      drawPoint(p.x, p.y, clusterColor);
-      drawnPoints += 1;
+      drawPointBox(p.x, p.y, clusterColor);
     }
     ctx.globalAlpha = 1;
     if (state.highlightSearch && isSearchResult) drawSearchRing(p.x, p.y);
+    if (state.selectedCluster && isSelectedCluster && state.highlightCluster) drawClusterFocusRing(p.x, p.y, clusterColor || '#ffffff');
   }
-  requestVisibleThumbnails(shouldUseThumbs ? 1 : 0);
 
-  drawClusterLegend(rect);
   drawLabels(rect);
   if (state.hover) drawTooltip(state.hover);
-  state.lastRenderStats = {
-    total: state.rows.length,
-    visible: visibleRows.length,
-    drawnThumbs,
-    drawnPoints,
-    renderMs: performance.now() - started,
-    reason: state.lastRenderReason,
-  };
-  updateRenderStatus();
 }
 
 function drawGrid(rect) {
-  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.strokeStyle = 'rgba(21,23,26,0.10)';
   ctx.lineWidth = 1;
   ctx.strokeRect(60, 42, rect.width - 120, rect.height - 104);
-  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  ctx.strokeStyle = 'rgba(21,23,26,0.045)';
   for (let i = 1; i < 6; i++) {
     const x = 60 + (rect.width - 120) * i / 6;
     const y = 42 + (rect.height - 104) * i / 6;
@@ -809,8 +592,8 @@ function drawGrid(rect) {
 }
 
 function drawLabels(rect) {
-  ctx.fillStyle = 'rgba(255,255,255,0.68)';
-  ctx.font = '12px Arial';
+  ctx.fillStyle = 'rgba(21,23,26,0.55)';
+  ctx.font = '12px Geist, Arial';
   ctx.textAlign = 'center';
   ctx.fillText('Projection X', rect.width / 2, rect.height - 24);
   ctx.save();
@@ -821,118 +604,34 @@ function drawLabels(rect) {
   ctx.textAlign = 'left';
 }
 
-function drawImageThumb(img, x, y) {
-  const size = state.thumbSize;
-  const aspect = img.naturalWidth / img.naturalHeight;
-  const w = aspect >= 1 ? size : size * aspect;
-  const h = aspect >= 1 ? size / aspect : size;
-  ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
-}
-
-function drawThumbnailPlaceholder(x, y, color = null) {
-  const radius = Math.max(5, Math.min(12, state.thumbSize * 0.16));
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = color || 'rgba(255,255,255,0.76)';
+function drawImageThumb(img, x, y, color = null) {
+  const box = thumbnailBox(x, y, state.thumbSize);
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.78)';
+  roundedRect(box.x, box.y, box.size, box.size, box.radius);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+  ctx.clip();
+
+  const naturalW = img.naturalWidth || 1;
+  const naturalH = img.naturalHeight || 1;
+  const aspect = naturalW / naturalH;
+  const inner = box.size - 4;
+  const w = aspect >= 1 ? inner : inner * aspect;
+  const h = aspect >= 1 ? inner / aspect : inner;
+  ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+  ctx.restore();
+
+  ctx.save();
+  roundedRect(box.x, box.y, box.size, box.size, box.radius);
+  ctx.strokeStyle = color || 'rgba(21,23,26,0.26)';
+  ctx.lineWidth = color ? 2 : 1;
   ctx.stroke();
-}
-
-function getFilteredRows() {
-  return state.rows.filter(row => rowPassesFilters(row));
-}
-
-function rowPassesFilters(row) {
-  if (state.showOnlySearch && state.searchResultPaths.size && !state.searchResultPaths.has(row.relative_path)) return false;
-  const filters = state.filters || {};
-  if (filters.cluster !== '' && String(row.cluster) !== String(filters.cluster)) return false;
-  if (filters.filename && !String(row.filename || '').toLowerCase().includes(filters.filename.toLowerCase())) return false;
-  if (filters.path && !String(row.relative_path || '').toLowerCase().includes(filters.path.toLowerCase())) return false;
-  if (filters.subfolder && subfolderOf(row.relative_path) !== filters.subfolder) return false;
-  const searchResult = state.searchResults.find(result => result.relative_path === row.relative_path);
-  const score = searchResult ? Number(searchResult.score) : null;
-  if (filters.scoreMin !== '' && (score === null || score < Number(filters.scoreMin))) return false;
-  if (filters.scoreMax !== '' && (score === null || score > Number(filters.scoreMax))) return false;
-  return true;
-}
-
-function subfolderOf(relativePath) {
-  const parts = String(relativePath || '').replace(/\\/g, '/').split('/');
-  return parts.length > 1 ? parts.slice(0, -1).join('/') : '';
-}
-
-function getVisibleRows(rect) {
-  const margin = Math.max(state.thumbSize, state.pointSize, 64);
-  const rows = getFilteredRows();
-  return rows.filter(row => {
-    const x = row._screenX;
-    const y = row._screenY;
-    return x >= -margin && x <= rect.width + margin && y >= -margin && y <= rect.height + margin;
-  });
-}
-
-function shouldRenderThumbnails() {
-  if (state.mode !== 'images') return false;
-  const count = getFilteredRows().length;
-  if (state.forceThumbnails) return true;
-  if (count <= 500) return true;
-  if (count <= 5000) return state.zoom >= 1.8;
-  return state.zoom >= 3;
-}
-
-function adaptiveRenderMessage() {
-  const count = getFilteredRows().length;
-  if (state.mode !== 'images') {
-    return count > 500 ? 'Point mode is active for performance. Switch to thumbnails or force thumbnails when you need image previews.' : 'Point mode is active.';
-  }
-  if (state.forceThumbnails) return 'Forced thumbnail rendering is enabled.';
-  if (count <= 500) return 'Lazy thumbnail rendering is active.';
-  const threshold = count <= 5000 ? 1.8 : 3;
-  if (state.zoom < threshold) return `Using points for performance. Zoom in to ${threshold}x to show visible thumbnails.`;
-  return 'Rendering visible thumbnails only.';
-}
-
-function requestVisibleThumbnails(priority = 1) {
-  if (!state.visibleRows.length) return;
-  if (!shouldRenderThumbnails() && priority < 2) return;
-  const visiblePaths = new Set(state.visibleRows.map(row => row.relative_path));
-  for (const row of state.visibleRows) {
-    thumbnailCache.request(row.relative_path, priority);
-  }
-  thumbnailCache.evict(visiblePaths);
-  updateThumbnailStatus();
-}
-
-function updateThumbnailStatus() {
-  if (!has('thumbnailStatus')) return;
-  const stats = thumbnailCache.stats();
-  $('thumbnailStatus').textContent = `Thumbnail cache: ${stats.loaded}/${stats.max} loaded, ${stats.loading} loading, ${stats.queued} queued${stats.failed ? `, ${stats.failed} failed` : ''}.`;
-}
-
-function updateRenderStatus() {
-  if (has('renderNotice')) {
-    $('renderNotice').textContent = adaptiveRenderMessage();
-    $('renderNotice').classList.toggle('warn', state.mode === 'images' && !shouldRenderThumbnails());
-  }
-  if (has('renderDebug') && state.lastRenderStats) {
-    const stats = state.lastRenderStats;
-    $('renderDebug').textContent = [
-      `items=${stats.total}`,
-      `visible=${stats.visible}`,
-      `thumbs=${stats.drawnThumbs}`,
-      `points=${stats.drawnPoints}`,
-      `render=${stats.renderMs.toFixed(1)}ms`,
-      `reason=${stats.reason}`,
-    ].join(' | ');
-  }
-  updateThumbnailStatus();
+  ctx.restore();
 }
 
 function drawTooltip(row) {
-  const p = { x: row._screenX, y: row._screenY };
-  thumbnailCache.request(row.relative_path, 3);
-  const img = thumbnailCache.get(row.relative_path).image;
+  const p = project(row);
+  const img = state.images.get(row.relative_path);
   const preview = 160;
   const pad = 12;
   let w = 280;
@@ -981,29 +680,70 @@ function hasClusterK(row) {
   return Boolean(row && Number.isFinite(Number(row.cluster_k)));
 }
 
-function drawClusterHalo(x, y, color) {
+function thumbnailBox(x, y, sizeOverride = state.thumbSize, expand = 0) {
+  const size = Math.max(16, Number(sizeOverride || state.thumbSize)) + expand;
+  return {
+    x: x - size / 2,
+    y: y - size / 2,
+    size,
+    radius: Math.max(5, Math.min(10, size * 0.16)),
+  };
+}
+
+function roundedRect(x, y, width, height, radius) {
   ctx.beginPath();
-  ctx.arc(x, y, Math.max(13, state.thumbSize * 0.55), 0, Math.PI * 2);
+  if (ctx.roundRect) {
+    ctx.roundRect(x, y, width, height, radius);
+    return;
+  }
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+}
+
+function drawClusterFrame(x, y, color) {
+  const box = thumbnailBox(x, y, state.thumbSize, 8);
+  ctx.save();
+  roundedRect(box.x, box.y, box.size, box.size, box.radius);
   ctx.fillStyle = color;
-  ctx.globalAlpha = 0.18;
+  ctx.globalAlpha = 0.14;
   ctx.fill();
   ctx.globalAlpha = 1;
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.stroke();
+  ctx.restore();
 }
 
 function drawSearchRing(x, y) {
   ctx.save();
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(x, y, Math.max(18, state.thumbSize * 0.62), 0, Math.PI * 2);
+  const box = thumbnailBox(x, y, state.thumbSize, 12);
+  roundedRect(box.x, box.y, box.size, box.size, box.radius + 2);
   ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,0.16)';
-  ctx.beginPath();
-  ctx.arc(x, y, Math.max(18, state.thumbSize * 0.62), 0, Math.PI * 2);
+  roundedRect(box.x, box.y, box.size, box.size, box.radius + 2);
   ctx.fill();
+  ctx.restore();
+}
+
+function drawClusterFocusRing(x, y, color) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([8, 5]);
+  const box = thumbnailBox(x, y, state.thumbSize, 18);
+  roundedRect(box.x, box.y, box.size, box.size, box.radius + 3);
+  ctx.stroke();
+  ctx.setLineDash([]);
   ctx.restore();
 }
 
@@ -1036,6 +776,57 @@ function drawPoint(x, y, color = null) {
   ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.stroke();
 }
 
+function renderPlotLegend() {
+  if (!has('plotLegend')) return;
+  const groups = clusterGroups();
+  if (!groups.length) {
+    $('plotLegend').hidden = true;
+    setHTML('plotLegend', '');
+    return;
+  }
+  $('plotLegend').hidden = false;
+  setHTML('plotLegend', [
+    '<span class="plot-legend-title">Clusters</span>',
+    ...groups.slice(0, 8).map(([cluster, rows]) => {
+      const color = CLUSTER_PALETTE[(Number(cluster) - 1) % CLUSTER_PALETTE.length];
+      return `<span class="plot-legend-item"><i style="background:${color}"></i>Cluster ${escapeHtml(cluster)}<b>${rows.length}</b></span>`;
+    })
+  ].join(''));
+}
+
+function updatePlotStatus() {
+  const stats = document.querySelectorAll('.plot-status .ps-stat .v');
+  if (stats[0]) stats[0].textContent = state.rows.length ? String(state.rows.length) : 'canvas';
+  if (stats[1]) stats[1].textContent = state.mode;
+  if (stats[2]) stats[2].textContent = `${state.zoom.toFixed(2)}x`;
+}
+
+function updateRunSummary() {
+  const values = document.querySelectorAll('.gen-summary .gv');
+  if (values[0]) values[0].textContent = state.rows.length ? String(state.rows.length) : 'img';
+  if (values[1] && has('modelKey')) {
+    const selected = state.models.find(m => m.key === $('modelKey').value);
+    values[1].textContent = selected?.family || selected?.label || 'selected';
+  }
+  if (values[2] && has('reducer')) values[2].textContent = $('reducer').value.toUpperCase();
+  if (values[3]) values[3].textContent = clusterGroups().length ? `k=${clusterGroups().length}` : 'optional';
+  setText('workflowImageCount', state.rows.length ? `${state.rows.length} imgs` : 'img');
+  if (has('systemStatus')) setText('systemStatus', state.rows.length ? `${state.rows.length} imgs` : '0 imgs');
+}
+
+function drawPointBox(x, y, color = null) {
+  const size = Math.max(10, state.pointSize * 2.8);
+  const box = thumbnailBox(x, y, size, 0);
+  ctx.save();
+  roundedRect(box.x, box.y, box.size, box.size, 4);
+  ctx.fillStyle = color ? `${color}33` : '#eee';
+  ctx.fill();
+  ctx.strokeStyle = color || 'rgba(0,0,0,0.28)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+}
+
 function resetView(redraw = true) {
   state.zoom = 1;
   state.panX = 0;
@@ -1043,92 +834,88 @@ function resetView(redraw = true) {
   state.dragging = false;
   state.dragStart = null;
   state.hover = null;
-  markTransformDirty();
-  if (redraw) scheduleRender('reset-view');
+  if (redraw) draw();
 }
 
-function fitToData() {
-  // The base projection maps current data bounds into the canvas at zoom=1.
-  resetView(false);
-  scheduleRender('fit-to-data');
+function syncReducerVisuals() {
+  if (!has('reducer')) return;
+  const value = $('reducer').value;
+  setText('workflowReducerShort', value.toUpperCase());
+  document.querySelectorAll('[data-reducer-choice]').forEach(button => {
+    button.classList.toggle('active', button.dataset.reducerChoice === value);
+  });
+  updateRunSummary();
 }
 
 function findHover(evt) {
   if (!state.rows.length) return null;
-  const rect = canvas.getBoundingClientRect();
+  const rect = refreshPlotRect();
   const mx = evt.clientX - rect.left;
   const my = evt.clientY - rect.top;
-  const candidates = nearbyRows(mx, my);
   let best = null;
   let bestD = Math.max(22, state.thumbSize * 0.55);
-  for (const row of candidates) {
-    const p = { x: row._screenX, y: row._screenY };
+  const rows = state.showOnlySearch && state.searchResultPaths.size
+    ? state.rows.filter(row => state.searchResultPaths.has(row.relative_path))
+    : state.rows;
+  for (const row of rows) {
+    const p = project(row);
     const d = Math.hypot(mx - p.x, my - p.y);
     if (d < bestD) { bestD = d; best = row; }
   }
   return best;
 }
 
-function rebuildSpatialIndex() {
-  state.spatialIndex.clear();
-  const rows = getFilteredRows();
-  const cellSize = state.spatialCellSize;
-  for (const row of rows) {
-    const cx = Math.floor(row._screenX / cellSize);
-    const cy = Math.floor(row._screenY / cellSize);
-    const key = `${cx},${cy}`;
-    if (!state.spatialIndex.has(key)) state.spatialIndex.set(key, []);
-    state.spatialIndex.get(key).push(row);
-  }
-}
-
-function nearbyRows(x, y) {
-  updateProjectionTransform();
-  const cellSize = state.spatialCellSize;
-  const cx = Math.floor(x / cellSize);
-  const cy = Math.floor(y / cellSize);
-  const rows = [];
-  for (let gx = cx - 1; gx <= cx + 1; gx++) {
-    for (let gy = cy - 1; gy <= cy + 1; gy++) {
-      const bucket = state.spatialIndex.get(`${gx},${gy}`);
-      if (bucket) rows.push(...bucket);
-    }
-  }
-  return rows;
-}
-
 function exportPng() {
-  if (!state.rows.length) {
-    setJobText('Generate or load a projection before exporting PNG.');
-    return;
-  }
   const link = document.createElement('a');
-  link.download = 'projector-projection.png';
+  link.download = 'imagecluster-clip-projection.png';
   link.href = canvas.toDataURL('image/png');
   link.click();
-}
-
-function downloadProjectionTsv() {
-  if (!state.resultPath) {
-    setJobText('Generate or load a projection before downloading TSV.');
-    return;
-  }
-  if (state.jobId) {
-    window.location.href = `/api/jobs/${state.jobId}/download`;
-    return;
-  }
-  window.open(`/${state.resultPath}`, '_blank', 'noopener');
 }
 
 function updateSearchCapability() {
   if (!has('modelKey') || !has('searchCapability')) return;
   const selected = state.models.find(m => m.key === $('modelKey').value);
   if (!selected) return;
-  const searchable = Boolean(selected.supports_text_search && selected.available);
-  $('searchCapability').textContent = searchable
-    ? `${selected.label} can search image embeddings with text queries after a projection/index exists.`
-    : 'The selected model supports image projection only and cannot process text queries.';
-  $('searchCapability').className = searchable ? 'search-capability small ok' : 'search-capability small danger';
+  // Capability (can this model search by text at all?) is separate from availability
+  // (are its runtime deps installed / embeddings generated?). CODEX_GUIDE §4.3: the bar is
+  // disabled only when the model lacks the text-search capability flag; otherwise it stays
+  // usable and we surface the availability reason inline.
+  const supportsText = Boolean(selected.supports_text_search);
+  const searchable = Boolean(supportsText && selected.available);
+  // The bar shows a compact indicator ("mod N · <status>") so a long model label can't make
+  // the search field unusable; the full sentence lives in the title tooltip.
+  let label;
+  let tone;
+  let full;
+  if (searchable) {
+    label = 'text ✓';
+    tone = 'cap-ok';
+    full = `${selected.label} can search cached image embeddings with text queries.`;
+  } else if (!supportsText) {
+    label = 'no text';
+    tone = 'cap-danger';
+    full = `${selected.label} does not support text search. Pick a CLIP-family model to search by text.`;
+  } else {
+    const missingReqs = selected.missing_requirements && selected.missing_requirements.length
+      ? selected.missing_requirements.join(', ')
+      : 'runtime requirements';
+    label = 'setup';
+    tone = 'cap-warn';
+    full = `${selected.label} supports text search once ${missingReqs} are installed and embeddings are generated.`;
+  }
+  const ref = selected._num ? `mod ${selected._num}` : 'model';
+  setText('searchCapability', `${ref} · ${label}`);
+  $('searchCapability').className = `sb-meta ${tone}`;
+  $('searchCapability').title = full;
+  if (has('searchQuery')) {
+    $('searchQuery').disabled = !supportsText;
+    $('searchQuery').placeholder = supportsText
+      ? "Describe what you're looking for - e.g. gold background Madonna and Child"
+      : 'Text search is not available for this model.';
+  }
+  if (has('semanticSearchBar')) $('semanticSearchBar').classList.toggle('is-disabled', !supportsText);
+  if (has('searchBtn')) $('searchBtn').disabled = !searchable;
+  if (has('buildIndexBtn')) $('buildIndexBtn').disabled = !searchable;
 }
 
 async function runSemanticSearch() {
@@ -1159,13 +946,11 @@ async function runSemanticSearch() {
     state.searchResults = data.results || [];
     state.searchResultPaths = new Set(state.searchResults.map(r => r.relative_path));
     renderSearchResults();
+    selectDockPane('search', true);
     syncSearchWithRows();
-    updateFilterSummary();
     if (has('searchStatus')) $('searchStatus').textContent = `${state.searchResults.length} result(s) · ${data.embedding_id}`;
     if (has('exportSearchBtn')) $('exportSearchBtn').disabled = !state.searchResults.length;
-    updateWorkflowState();
-    openDrawer('results');
-    scheduleRender('search-results');
+    draw();
   } catch (err) {
     setSearchError(err.message);
     if (has('searchStatus')) $('searchStatus').textContent = 'Search failed.';
@@ -1180,28 +965,22 @@ function renderSearchResults() {
     setHTML('searchResults', '');
     return;
   }
-  for (const result of state.searchResults) {
-    thumbnailCache.request(result.relative_path, 4);
-  }
   $('searchResults').style.setProperty('--search-thumb-size', `${state.searchThumbSize}px`);
   setHTML('searchResults', state.searchResults.map(result => `
     <article class="search-card" data-path="${escapeHtml(result.relative_path)}">
-      <img src="${escapeHtml(imageUrl(result))}" alt="" loading="lazy" />
+      <img src="${escapeHtml(thumbUrl(result, Math.max(160, state.searchThumbSize * 1.5)))}" alt="" loading="lazy" />
       <div class="search-meta">
         <span class="search-rank">Rank: ${result.rank}</span>
         <span class="search-score">Score: ${Number(result.score).toFixed(4)}</span>
         ${Number.isFinite(Number(result.cluster)) ? `<span class="search-cluster">Cluster: ${Number(result.cluster)}</span>` : ''}
       </div>
       <div class="search-title">${escapeHtml(result.filename)}</div>
-      <div class="search-card-actions">
-        <button type="button" class="search-detail-btn" data-preview-path="${escapeHtml(result.relative_path)}">Details</button>
-        <a class="search-open-link" href="${escapeHtml(imageUrl(result))}" target="_blank" rel="noopener">Open file</a>
-      </div>
+      <a class="search-open-link" href="${escapeHtml(imageUrl(result))}" target="_blank" rel="noopener">Open image</a>
     </article>
   `).join(''));
   document.querySelectorAll('.search-card').forEach(card => {
     card.addEventListener('click', event => {
-      if (event.target.closest('a') || event.target.closest('button')) return;
+      if (event.target.closest('a')) return;
       focusSearchResult(card.dataset.path);
     });
     card.addEventListener('dblclick', () => {
@@ -1209,33 +988,103 @@ function renderSearchResults() {
       if (result) openImagePreview(result);
     });
   });
-  document.querySelectorAll('.search-detail-btn').forEach(button => {
-    button.addEventListener('click', () => {
-      const result = state.searchResults.find(item => item.relative_path === button.dataset.previewPath);
-      if (result) openImagePreview(result);
+}
+
+function clusterGroups() {
+  const groups = new Map();
+  for (const row of state.rows) {
+    if (!hasCluster(row)) continue;
+    const key = String(Number(row.cluster));
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  return [...groups.entries()].sort((a, b) => Number(a[0]) - Number(b[0]));
+}
+
+function renderClusterGallery() {
+  if (!has('clusterGallery') || !has('clusterSelect') || !has('clusterSummary')) return;
+  const groups = clusterGroups();
+  const clusterSelect = $('clusterSelect');
+  const currentValue = clusterSelect.value || state.selectedCluster || '';
+  if (!groups.length) {
+    state.selectedCluster = '';
+    clusterSelect.innerHTML = '<option value="">No clusters yet</option>';
+    setText('clusterSummary', 'Enable clustering to browse the images inside each cluster.');
+    setHTML('clusterGallery', '');
+    if (has('showOnlyClusterToggle')) $('showOnlyClusterToggle').checked = false;
+    if (has('highlightClusterToggle')) $('highlightClusterToggle').checked = true;
+    hideElement('clusterPanel');
+    renderPlotLegend();
+    draw();
+    return;
+  }
+
+  showElement('clusterPanel', 'block');
+  selectDockPane('cluster');
+  const options = groups.map(([cluster, rows]) => `<option value="${escapeHtml(cluster)}">Cluster ${escapeHtml(cluster)} (${rows.length})</option>`);
+  clusterSelect.innerHTML = options.join('');
+  const preferred = groups.some(([cluster]) => cluster === currentValue) ? currentValue : groups[0][0];
+  clusterSelect.value = preferred;
+  state.selectedCluster = preferred;
+  setText('clusterSummary', `${groups.length} cluster(s) available · ${state.rows.filter(hasCluster).length} labelled image(s).`);
+  renderClusterCards();
+  draw();
+}
+
+function renderClusterCards() {
+  if (!has('clusterGallery') || !state.selectedCluster) {
+    setHTML('clusterGallery', '');
+    return;
+  }
+  const rows = state.rows
+    .filter(row => String(row.cluster) === String(state.selectedCluster))
+    .sort((a, b) => (Number(b.cluster_score || 0) - Number(a.cluster_score || 0)) || String(a.filename).localeCompare(String(b.filename)));
+  if (!rows.length) {
+    setHTML('clusterGallery', '<div class="empty-state"><h3>No images in this cluster</h3><p>Try selecting another cluster or rerun the projection with clustering enabled.</p></div>');
+    return;
+  }
+  $('clusterGallery').style.setProperty('--search-thumb-size', `${state.clusterThumbSize}px`);
+  setHTML('clusterGallery', rows.map(row => `
+    <article class="search-card cluster-card" data-path="${escapeHtml(row.relative_path)}">
+      <img src="${escapeHtml(thumbUrl(row, Math.max(160, state.clusterThumbSize * 1.5)))}" alt="" loading="lazy" />
+      <div class="search-meta">
+        <span class="search-rank">Cluster: ${escapeHtml(row.cluster)}</span>
+        ${Number.isFinite(Number(row.cluster_score)) ? `<span class="search-score">Score: ${Number(row.cluster_score).toFixed(4)}</span>` : ''}
+      </div>
+      <div class="search-title">${escapeHtml(row.filename)}</div>
+      <a class="search-open-link" href="${escapeHtml(imageUrl(row))}" target="_blank" rel="noopener">Open image</a>
+    </article>
+  `).join(''));
+  document.querySelectorAll('#clusterGallery .cluster-card').forEach(card => {
+    card.addEventListener('click', event => {
+      if (event.target.closest('a')) return;
+      focusSearchResult(card.dataset.path);
+    });
+    card.addEventListener('dblclick', () => {
+      const row = state.rows.find(item => item.relative_path === card.dataset.path);
+      if (row) openImagePreview(row);
     });
   });
 }
 
 function updateSearchThumbSize(value) {
   state.searchThumbSize = Math.max(80, Math.min(320, Number(value || 160)));
-  localStorage.setItem('projector.searchThumbSize', String(state.searchThumbSize));
+  localStorage.setItem('imagecluster.searchThumbSize', String(state.searchThumbSize));
   if (has('searchResults')) $('searchResults').style.setProperty('--search-thumb-size', `${state.searchThumbSize}px`);
 }
 
 function openImagePreview(result) {
   if (!has('imagePreviewModal')) return;
-  if (state.previewPath) thumbnailCache.unpin(state.previewPath);
-  state.previewPath = result.relative_path;
-  thumbnailCache.pin(state.previewPath);
-  thumbnailCache.request(state.previewPath, 5);
   const url = imageUrl(result);
   $('previewImage').src = url;
   $('previewImage').alt = result.filename || '';
   $('previewTitle').textContent = result.filename || 'Image preview';
+  const scoreValue = Number.isFinite(Number(result.score))
+    ? `Score: ${Number(result.score).toFixed(4)}`
+    : (Number.isFinite(Number(result.cluster_score)) ? `Cluster score: ${Number(result.cluster_score).toFixed(4)}` : '');
   const details = [
-    `Rank: ${result.rank}`,
-    `Score: ${Number(result.score).toFixed(4)}`,
+    Number.isFinite(Number(result.rank)) ? `Rank: ${Number(result.rank)}` : '',
+    scoreValue,
     Number.isFinite(Number(result.cluster)) ? `Cluster: ${Number(result.cluster)}` : '',
   ].filter(Boolean).join(' · ');
   $('previewDetails').textContent = details;
@@ -1247,8 +1096,6 @@ function closeImagePreview() {
   if (!has('imagePreviewModal')) return;
   $('imagePreviewModal').hidden = true;
   if (has('previewImage')) $('previewImage').removeAttribute('src');
-  if (state.previewPath) thumbnailCache.unpin(state.previewPath);
-  state.previewPath = null;
 }
 
 function focusSearchResult(relativePath) {
@@ -1259,16 +1106,13 @@ function focusSearchResult(relativePath) {
   state.panX += rect.width / 2 - p.x;
   state.panY += rect.height / 2 - p.y;
   state.hover = row;
-  markTransformDirty();
-  thumbnailCache.request(row.relative_path, 5);
-  scheduleRender('focus-search-result');
+  draw();
 }
 
 function syncSearchWithRows() {
   if (!state.searchResults.length || !state.rows.length) return;
   const rowPaths = new Set(state.rows.map(row => row.relative_path));
   state.searchResultPaths = new Set(state.searchResults.map(r => r.relative_path).filter(path => rowPaths.has(path)));
-  markTransformDirty();
 }
 
 function clearSearch(redraw = true) {
@@ -1279,10 +1123,7 @@ function clearSearch(redraw = true) {
   if (has('searchStatus')) $('searchStatus').textContent = 'No search yet.';
   if (has('searchError')) { $('searchError').hidden = true; $('searchError').textContent = ''; }
   if (has('exportSearchBtn')) $('exportSearchBtn').disabled = true;
-  updateFilterSummary();
-  updateWorkflowState();
-  markTransformDirty();
-  if (redraw) scheduleRender('clear-search');
+  if (redraw) draw();
 }
 
 async function buildSearchIndex() {
@@ -1326,7 +1167,7 @@ function exportSearchTsv() {
   }
   const blob = new Blob([rows.join('\n')], { type: 'text/tab-separated-values' });
   const link = document.createElement('a');
-  link.download = 'projector-search-results.tsv';
+  link.download = 'imagecluster-search-results.tsv';
   link.href = URL.createObjectURL(blob);
   link.click();
   URL.revokeObjectURL(link.href);
@@ -1340,7 +1181,7 @@ function setSearchBusy(busy) {
   if (has('searchBtn')) $('searchBtn').disabled = busy;
   if (has('buildIndexBtn')) $('buildIndexBtn').disabled = busy;
   if (has('searchStatus') && busy) $('searchStatus').textContent = 'Searching...';
-  if (!busy) updateWorkflowState();
+  if (!busy) updateSearchCapability();
 }
 
 function setSearchError(message) {
@@ -1350,7 +1191,7 @@ function setSearchError(message) {
 }
 
 function setBusy(busy) {
-  if (has('startBtn')) $('startBtn').disabled = busy || !canUseSelectedModel() || !Number(state.scannedImageCount);
+  if (has('startBtn')) $('startBtn').disabled = busy;
 }
 
 function setJobText(text) {
@@ -1370,275 +1211,11 @@ function renderJobDebugLinks(job) {
 }
 
 function imageUrl(row) {
-  return imagePathToUrl(row.relative_path);
+  return `/${row.relative_path}`;
 }
 
-function updateFilterOptions() {
-  if (has('filterCluster')) {
-    const current = state.filters.cluster;
-    const clusters = [...new Set(state.rows.map(row => row.cluster).filter(v => Number.isFinite(Number(v))))].sort((a, b) => a - b);
-    setHTML('filterCluster', '<option value="">All clusters</option>' + clusters.map(cluster => `<option value="${cluster}">Cluster ${cluster}</option>`).join(''));
-    $('filterCluster').value = clusters.map(String).includes(String(current)) ? current : '';
-    state.filters.cluster = $('filterCluster').value;
-  }
-  if (has('filterSubfolder')) {
-    const current = state.filters.subfolder;
-    const folders = [...new Set(state.rows.map(row => subfolderOf(row.relative_path)).filter(Boolean))].sort();
-    setHTML('filterSubfolder', '<option value="">All subfolders</option>' + folders.map(folder => `<option value="${escapeHtml(folder)}">${escapeHtml(folder)}</option>`).join(''));
-    $('filterSubfolder').value = folders.includes(current) ? current : '';
-    state.filters.subfolder = $('filterSubfolder').value;
-  }
-  updateFilterSummary();
-}
-
-function updateFilterFromInputs() {
-  state.filters = {
-    cluster: has('filterCluster') ? $('filterCluster').value : '',
-    filename: has('filterFilename') ? $('filterFilename').value.trim() : '',
-    path: has('filterPath') ? $('filterPath').value.trim() : '',
-    subfolder: has('filterSubfolder') ? $('filterSubfolder').value : '',
-    scoreMin: has('filterScoreMin') ? $('filterScoreMin').value.trim() : '',
-    scoreMax: has('filterScoreMax') ? $('filterScoreMax').value.trim() : '',
-  };
-  markTransformDirty();
-  updateWorkflowState();
-  scheduleRender('filters');
-}
-
-function applyFilterState(filters = {}) {
-  state.filters = { cluster: '', filename: '', path: '', subfolder: '', scoreMin: '', scoreMax: '', ...filters };
-  if (has('filterCluster')) $('filterCluster').value = state.filters.cluster || '';
-  if (has('filterFilename')) $('filterFilename').value = state.filters.filename || '';
-  if (has('filterPath')) $('filterPath').value = state.filters.path || '';
-  if (has('filterSubfolder')) $('filterSubfolder').value = state.filters.subfolder || '';
-  if (has('filterScoreMin')) $('filterScoreMin').value = state.filters.scoreMin || '';
-  if (has('filterScoreMax')) $('filterScoreMax').value = state.filters.scoreMax || '';
-  markTransformDirty();
-  updateWorkflowState();
-  scheduleRender('filters-restored');
-}
-
-function clearAllFilters() {
-  state.showOnlySearch = false;
-  if (has('showOnlySearchToggle')) $('showOnlySearchToggle').checked = false;
-  applyFilterState({ cluster: '', filename: '', path: '', subfolder: '', scoreMin: '', scoreMax: '' });
-}
-
-function updateFilterSummary() {
-  if (!has('filterSummary')) return;
-  const visible = getFilteredRows().length;
-  const total = state.rows.length;
-  const active = Object.entries(state.filters || {}).filter(([, value]) => value !== '').map(([key]) => key);
-  $('filterSummary').textContent = total
-    ? `Showing ${visible} of ${total} images${active.length ? ` · active filters: ${active.join(', ')}` : ''}.`
-    : 'No projection loaded.';
-}
-
-async function loadAnalysisProjectionOptions() {
-  try {
-    const data = await apiJson('/api/analysis/projections');
-    state.analysisProjections = data.projections || [];
-    const options = '<option value="">Choose projection...</option>' + state.analysisProjections.map(p => `<option value="${escapeHtml(p.relative_path)}">${escapeHtml(p.name || p.relative_path)}</option>`).join('');
-    if (has('compareProjectionA')) setHTML('compareProjectionA', options);
-    if (has('compareProjectionB')) setHTML('compareProjectionB', options);
-  } catch (err) {
-    if (has('comparisonResults')) setText('comparisonResults', `Cannot load projection catalog: ${err.message}`);
-  }
-}
-
-async function loadSessionsList() {
-  if (!has('sessionList')) return;
-  try {
-    const data = await apiJson('/api/sessions');
-    state.sessions = data.sessions || [];
-    if (!state.sessions.length) {
-      setHTML('sessionList', '<option value="">No saved sessions</option>');
-      return;
-    }
-    setHTML('sessionList', '<option value="">Choose session...</option>' + state.sessions.map(s => `<option value="${escapeHtml(s.session_id)}">${escapeHtml(s.name || s.session_id)}</option>`).join(''));
-  } catch (err) {
-    setHTML('sessionList', '<option value="">Cannot load sessions</option>');
-  }
-}
-
-async function generateClusterReport() {
-  if (!state.resultPath) {
-    setText('clusterReportStatus', 'Load or generate a projection first.');
-    return;
-  }
-  try {
-    const report = await apiJson(`/api/analysis/cluster-report?projection=${encodeURIComponent(state.resultPath)}`);
-    state.lastClusterReport = report;
-    if (has('clusterReportJsonBtn')) $('clusterReportJsonBtn').disabled = false;
-    renderClusterReport(report);
-  } catch (err) {
-    setText('clusterReportStatus', `Cluster report error: ${err.message}`);
-  }
-}
-
-function renderClusterReport(report) {
-  if (has('clusterReportStatus')) {
-    setText('clusterReportStatus', report.clustering_available ? `${report.clusters.length} cluster(s), ${report.total_images} images.` : (report.message || 'No cluster data available.'));
-  }
-  if (!has('clusterReportResults')) return;
-  if (!report.clustering_available) {
-    setHTML('clusterReportResults', `<div class="status-box">${escapeHtml(report.message || 'No cluster data available.')}</div>`);
-    return;
-  }
-  setHTML('clusterReportResults', report.clusters.map(cluster => `
-    <article class="analysis-card">
-      <div class="analysis-card-head">
-        <strong>Cluster ${cluster.cluster}</strong>
-        <span>${cluster.count} images · ${cluster.percentage}%</span>
-        <button type="button" data-isolate-cluster="${cluster.cluster}">Isolate</button>
-      </div>
-      <div class="small">Dominant subfolder: ${escapeHtml(cluster.dominant_subfolder || 'none')}</div>
-      <div class="representatives">
-        ${cluster.representative_images.map(img => `<img src="${escapeHtml(imagePathToUrl(img.relative_path))}" alt="${escapeHtml(img.filename)}" title="${escapeHtml(img.filename)}" loading="lazy" />`).join('')}
-      </div>
-    </article>
-  `).join(''));
-  document.querySelectorAll('[data-isolate-cluster]').forEach(button => {
-    button.addEventListener('click', () => {
-      if (has('filterCluster')) $('filterCluster').value = button.dataset.isolateCluster;
-      updateFilterFromInputs();
-    });
-  });
-}
-
-async function compareSelectedProjections() {
-  const projections = [has('compareProjectionA') ? $('compareProjectionA').value : '', has('compareProjectionB') ? $('compareProjectionB').value : ''].filter(Boolean);
-  if (projections.length < 2) {
-    setText('comparisonResults', 'Choose two projections to compare.');
-    return;
-  }
-  try {
-    const data = await apiJson('/api/analysis/model-comparison', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projections, top_k: 5 }),
-    });
-    state.lastComparison = data;
-    if (has('comparisonJsonBtn')) $('comparisonJsonBtn').disabled = false;
-    renderComparison(data);
-  } catch (err) {
-    setText('comparisonResults', `Comparison error: ${err.message}`);
-  }
-}
-
-function renderComparison(data) {
-  if (!has('comparisonResults')) return;
-  const pair = data.pairwise && data.pairwise[0];
-  setHTML('comparisonResults', `
-    <div class="status-box">${escapeHtml(data.warning || '')}</div>
-    <div class="summary-grid">
-      <div><span>Common images</span><strong>${data.common_images_count}</strong></div>
-      <div><span>Mean neighbor overlap</span><strong>${pair && pair.nearest_neighbor_overlap.mean !== null ? pair.nearest_neighbor_overlap.mean : 'n/a'}</strong></div>
-      <div><span>Cluster changes</span><strong>${pair ? `${pair.cluster_membership_difference.changed}/${pair.cluster_membership_difference.comparable}` : 'n/a'}</strong></div>
-    </div>
-    <div class="analysis-columns">
-      ${(data.projections || []).map(p => `<div class="status-box"><strong>${escapeHtml(p.embedding_model || p.model_key || 'Projection')}</strong><br>${escapeHtml(p.reducer || '')} · ${p.image_count} images<br>${escapeHtml(p.relative_path)}</div>`).join('')}
-    </div>
-  `);
-}
-
-function collectSessionPayload() {
-  return {
-    name: has('sessionName') && $('sessionName').value.trim() ? $('sessionName').value.trim() : `Session ${new Date().toLocaleString()}`,
-    active_projection: state.resultPath,
-    active_model: state.selectedModel,
-    active_reducer: has('reducer') ? $('reducer').value : null,
-    display_settings: {
-      zoom: state.zoom,
-      panX: state.panX,
-      panY: state.panY,
-      mode: state.mode,
-      thumbSize: state.thumbSize,
-      showThumbnailOutline: state.showThumbnailOutline,
-      showOnlySearch: state.showOnlySearch,
-    },
-    filters: state.filters,
-    semantic_search: {
-      last_payload: state.lastSearchPayload,
-      result_paths: [...state.searchResultPaths],
-      query: has('searchQuery') ? $('searchQuery').value : '',
-      top_k: has('searchTopK') ? $('searchTopK').value : '',
-    },
-    selected_image: state.hover ? state.hover.relative_path : null,
-  };
-}
-
-async function saveCurrentSession() {
-  try {
-    const data = await apiJson('/api/sessions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(collectSessionPayload()),
-    });
-    setText('sessionStatus', `Saved session ${data.session_id}.`);
-    await loadSessionsList();
-  } catch (err) {
-    setText('sessionStatus', `Session save error: ${err.message}`);
-  }
-}
-
-async function loadSelectedSession() {
-  if (!has('sessionList') || !$('sessionList').value) return;
-  try {
-    const data = await apiJson(`/api/sessions/${encodeURIComponent($('sessionList').value)}`);
-    if (has('sessionName')) $('sessionName').value = data.name || data.session_id || '';
-    if (data.active_projection) await loadProjectionFile(data.active_projection);
-    const display = data.display_settings || {};
-    state.zoom = Number(display.zoom || 1);
-    state.panX = Number(display.panX || 0);
-    state.panY = Number(display.panY || 0);
-    state.mode = display.mode || state.mode;
-    state.thumbSize = Number(display.thumbSize || state.thumbSize);
-    state.showThumbnailOutline = display.showThumbnailOutline !== false;
-    state.showOnlySearch = Boolean(display.showOnlySearch);
-    if (has('thumbSize')) $('thumbSize').value = state.thumbSize;
-    if (has('showThumbnailOutline')) $('showThumbnailOutline').checked = state.showThumbnailOutline;
-    if (has('showOnlySearchToggle')) $('showOnlySearchToggle').checked = state.showOnlySearch;
-    if (data.semantic_search && data.semantic_search.last_payload) {
-      state.lastSearchPayload = data.semantic_search.last_payload;
-      state.searchResults = state.lastSearchPayload.results || [];
-      state.searchResultPaths = new Set(state.searchResults.map(result => result.relative_path));
-      if (has('searchQuery')) $('searchQuery').value = data.semantic_search.query || state.lastSearchPayload.query || '';
-      renderSearchResults();
-    }
-    updateModeButton();
-    applyFilterState(data.filters || {});
-    setText('sessionStatus', `Loaded session ${data.session_id}${data.warnings && data.warnings.length ? ` · ${data.warnings.join(' ')}` : ''}`);
-  } catch (err) {
-    setText('sessionStatus', `Session load error: ${err.message}`);
-  }
-}
-
-async function exportStandaloneHtml() {
-  if (!state.resultPath) {
-    setText('sessionStatus', 'Load or generate a projection before exporting HTML.');
-    return;
-  }
-  try {
-    const data = await apiJson('/api/export/html', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projection: state.resultPath, session: collectSessionPayload(), mode: 'package' }),
-    });
-    setHTML('sessionStatus', `HTML export created: <a href="/${escapeHtml(data.index_path)}" target="_blank" rel="noopener">${escapeHtml(data.index_path)}</a>`);
-  } catch (err) {
-    setText('sessionStatus', `HTML export error: ${err.message}`);
-  }
-}
-
-function exportJson(data, filename) {
-  if (!data) return;
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+function thumbUrl(row, w = 160) {
+  return `/api/thumb?path=${encodeURIComponent(row.relative_path)}&w=${Math.round(w)}`;
 }
 
 function parseOptionalNumber(value) {
@@ -1647,94 +1224,14 @@ function parseOptionalNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function renderInstallAdvice(advice) {
-  let box = document.getElementById('installAdvice');
-  if (!box && has('systemStatus')) {
-    box = document.createElement('div');
-    box.id = 'installAdvice';
-    box.className = 'install-advice';
-    $('systemStatus').insertAdjacentElement('afterend', box);
-  }
-  if (!box) return;
-  if (!advice) { box.style.display = 'none'; box.textContent = ''; return; }
-  box.style.display = 'block';
-  box.textContent = [
-    `Detected platform: ${advice.platform}`,
-    advice.recommended || '',
-    '',
-    'Recommended launcher:',
-    advice.cpu_launcher || '',
-    '',
-    'CUDA launcher, when applicable:',
-    advice.cuda_launcher || '',
-    '',
-    'Manual CPU command:',
-    advice.cpu_command || '',
-    '',
-    'Manual CUDA command:',
-    advice.cuda_command || '',
-    '',
-    'Then install remaining packages:',
-    advice.after_pytorch || '',
-    '',
-    advice.imagebind_note || '',
-  ].join('\n');
-}
-
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-}
-
-const drawerTitles = {
-  explore: 'Explore',
-  results: 'Search Results',
-  filters: 'Filters',
-  session: 'Session',
-  cluster: 'Cluster',
-  compare: 'Compare',
-  export: 'Export',
-  info: 'Info',
-};
-
-function openDrawer(name) {
-  if (!has('toolDrawer')) return;
-  document.querySelectorAll('.drawer-pane').forEach(pane => {
-    pane.hidden = pane.dataset.pane !== name;
-  });
-  document.querySelectorAll('.right-rail [data-drawer]').forEach(button => {
-    button.classList.toggle('active', button.dataset.drawer === name);
-  });
-  setText('drawerTitle', drawerTitles[name] || 'Tools');
-  $('toolDrawer').hidden = false;
-  if (has('drawerBackdrop')) $('drawerBackdrop').hidden = false;
-}
-
-function closeDrawer() {
-  if (!has('toolDrawer')) return;
-  $('toolDrawer').hidden = true;
-  if (has('drawerBackdrop')) $('drawerBackdrop').hidden = true;
-  document.querySelectorAll('.right-rail [data-drawer]').forEach(button => button.classList.remove('active'));
-}
-
-function syncReducerRadios() {
-  if (!has('reducer')) return;
-  document.querySelectorAll('input[name="reducerChoice"]').forEach(input => {
-    input.checked = input.value === $('reducer').value;
-  });
-}
-
-function setReducerFromRadio(value) {
-  if (!has('reducer')) return;
-  $('reducer').value = value;
-  $('reducer').dispatchEvent(new Event('change'));
-  syncReducerRadios();
 }
 
 canvas.addEventListener('wheel', evt => {
   evt.preventDefault();
   state.zoom = Math.max(0.2, Math.min(12, state.zoom * (evt.deltaY < 0 ? 1.1 : 0.9)));
-  markTransformDirty();
-  scheduleRender('zoom');
+  scheduleDraw();
 }, { passive: false });
 
 canvas.addEventListener('mousedown', evt => {
@@ -1746,154 +1243,143 @@ canvas.addEventListener('mousemove', evt => {
   if (state.dragging) {
     state.panX = evt.clientX - state.dragStart.x;
     state.panY = evt.clientY - state.dragStart.y;
-    markTransformDirty();
-    scheduleRender('pan');
   } else {
-    const nextHover = findHover(evt);
-    if (nextHover !== state.hover) {
-      state.hover = nextHover;
-      if (state.hover) thumbnailCache.request(state.hover.relative_path, 4);
-      scheduleRender('hover');
-    }
+    state.hover = findHover(evt);
   }
+  scheduleDraw();
 });
-canvas.addEventListener('mouseleave', () => {
-  if (!state.hover) return;
-  state.hover = null;
-  scheduleRender('hover-clear');
-});
+canvas.addEventListener('mouseleave', () => { state.hover = null; scheduleDraw(); });
 
 if (has('scanImageDirBtn')) $('scanImageDirBtn').addEventListener('click', scanImages);
 if (has('modelKey')) $('modelKey').addEventListener('change', updateModelInfo);
-if (has('reducer')) $('reducer').addEventListener('change', () => {
-  syncReducerRadios();
-  updateWorkflowState();
-});
-document.querySelectorAll('input[name="reducerChoice"]').forEach(input => {
-  input.addEventListener('change', event => setReducerFromRadio(event.target.value));
-});
-['clusterEnabled', 'clusterMode', 'clusterMinK', 'clusterK', 'clusterMaxK'].forEach(id => {
-  if (has(id)) $(id).addEventListener('change', updateWorkflowState);
+if (has('reducer')) $('reducer').addEventListener('change', syncReducerVisuals);
+document.querySelectorAll('[data-reducer-choice]').forEach(button => {
+  button.addEventListener('click', () => {
+    if (!has('reducer')) return;
+    $('reducer').value = button.dataset.reducerChoice;
+    syncReducerVisuals();
+  });
 });
 if (has('startBtn')) $('startBtn').addEventListener('click', startJob);
 if (has('cancelBtn')) $('cancelBtn').addEventListener('click', cancelJob);
 if (has('resetViewBtn')) $('resetViewBtn').addEventListener('click', () => resetView());
-if (has('fitDataBtn')) $('fitDataBtn').addEventListener('click', fitToData);
+if (has('fitViewBtn')) $('fitViewBtn').addEventListener('click', () => resetView());
+if (has('zoomInBtn')) $('zoomInBtn').addEventListener('click', () => { state.zoom = Math.min(12, state.zoom * 1.2); draw(); });
+if (has('zoomOutBtn')) $('zoomOutBtn').addEventListener('click', () => { state.zoom = Math.max(0.2, state.zoom / 1.2); draw(); });
 if (has('exportPngBtn')) $('exportPngBtn').addEventListener('click', exportPng);
 if (has('toggleModeBtn')) $('toggleModeBtn').addEventListener('click', () => {
   state.mode = state.mode === 'images' ? 'points' : 'images';
-  updateModeButton();
-  scheduleRender('display-mode');
+  $('toggleModeBtn').textContent = state.mode === 'images' ? 'img' : 'pts';
+  $('toggleModeBtn').title = `Mode: ${state.mode}`;
+  draw();
 });
-if (has('thumbSize')) $('thumbSize').addEventListener('input', e => {
-  state.thumbSize = Number(e.target.value || 48);
-  scheduleRender('thumbnail-size');
-});
+if (has('thumbSize')) $('thumbSize').addEventListener('input', e => { state.thumbSize = Number(e.target.value || 48); draw(); });
 if (has('showThumbnailOutline')) $('showThumbnailOutline').addEventListener('change', e => {
   state.showThumbnailOutline = e.target.checked;
-  localStorage.setItem('projector.showThumbnailOutline', state.showThumbnailOutline ? 'true' : 'false');
-  scheduleRender('thumbnail-outline');
-});
-if (has('forceThumbnails')) $('forceThumbnails').addEventListener('change', e => {
-  state.forceThumbnails = e.target.checked;
-  localStorage.setItem('projector.forceThumbnails', state.forceThumbnails ? 'true' : 'false');
-  if (!state.forceThumbnails) applyAdaptiveDisplayMode();
-  scheduleRender('force-thumbnails');
+  localStorage.setItem('imagecluster.showThumbnailOutline', state.showThumbnailOutline ? 'true' : 'false');
+  draw();
 });
 if (has('showPlannedModels')) $('showPlannedModels').addEventListener('change', e => {
   state.showPlannedModels = e.target.checked;
-  localStorage.setItem('projector.showPlannedModels', state.showPlannedModels ? 'true' : 'false');
+  localStorage.setItem('imagecluster.showPlannedModels', state.showPlannedModels ? 'true' : 'false');
   renderModelOptions();
   updateModelInfo();
 });
-if (has('downloadBtn')) $('downloadBtn').addEventListener('click', downloadProjectionTsv);
-if (has('clearSearchFilterBtn')) $('clearSearchFilterBtn').addEventListener('click', () => {
-  state.showOnlySearch = false;
-  if (has('showOnlySearchToggle')) $('showOnlySearchToggle').checked = false;
-  clearSearch();
-});
+if (has('downloadBtn')) $('downloadBtn').addEventListener('click', () => { if (state.jobId) window.location.href = `/api/jobs/${state.jobId}/download`; });
 if (has('projectionList')) $('projectionList').addEventListener('change', e => loadProjectionFile(e.target.value));
 if (has('searchBtn')) $('searchBtn').addEventListener('click', runSemanticSearch);
 if (has('searchQuery')) $('searchQuery').addEventListener('keydown', e => { if (e.key === 'Enter') runSemanticSearch(); });
 if (has('clearSearchBtn')) $('clearSearchBtn').addEventListener('click', () => clearSearch());
 if (has('buildIndexBtn')) $('buildIndexBtn').addEventListener('click', buildSearchIndex);
 if (has('exportSearchBtn')) $('exportSearchBtn').addEventListener('click', exportSearchTsv);
-if (has('highlightSearchToggle')) $('highlightSearchToggle').addEventListener('change', e => {
-  state.highlightSearch = e.target.checked;
-  scheduleRender('search-highlight');
-});
-if (has('showOnlySearchToggle')) $('showOnlySearchToggle').addEventListener('change', e => {
-  state.showOnlySearch = e.target.checked;
-  markTransformDirty();
-  scheduleRender('search-filter');
-});
+if (has('highlightSearchToggle')) $('highlightSearchToggle').addEventListener('change', e => { state.highlightSearch = e.target.checked; draw(); });
+if (has('showOnlySearchToggle')) $('showOnlySearchToggle').addEventListener('change', e => { state.showOnlySearch = e.target.checked; draw(); });
 if (has('searchThumbSize')) $('searchThumbSize').addEventListener('input', e => updateSearchThumbSize(e.target.value));
-['filterCluster', 'filterFilename', 'filterPath', 'filterSubfolder', 'filterScoreMin', 'filterScoreMax'].forEach(id => {
-  if (has(id)) $(id).addEventListener('input', updateFilterFromInputs);
-  if (has(id)) $(id).addEventListener('change', updateFilterFromInputs);
+if (has('clusterSelect')) $('clusterSelect').addEventListener('change', e => {
+  state.selectedCluster = e.target.value;
+  renderClusterCards();
+  draw();
 });
-if (has('clearFiltersBtn')) $('clearFiltersBtn').addEventListener('click', clearAllFilters);
-if (has('clusterReportBtn')) $('clusterReportBtn').addEventListener('click', generateClusterReport);
-if (has('clusterReportJsonBtn')) $('clusterReportJsonBtn').addEventListener('click', () => exportJson(state.lastClusterReport, 'cluster-report.json'));
-if (has('compareBtn')) $('compareBtn').addEventListener('click', compareSelectedProjections);
-if (has('comparisonJsonBtn')) $('comparisonJsonBtn').addEventListener('click', () => exportJson(state.lastComparison, 'projection-comparison.json'));
-if (has('saveSessionBtn')) $('saveSessionBtn').addEventListener('click', saveCurrentSession);
-if (has('loadSessionBtn')) $('loadSessionBtn').addEventListener('click', loadSelectedSession);
-if (has('exportHtmlBtn')) $('exportHtmlBtn').addEventListener('click', exportStandaloneHtml);
-document.querySelectorAll('[data-query]').forEach(button => {
-  button.addEventListener('click', () => {
-    if (has('searchQuery')) $('searchQuery').value = button.dataset.query || '';
-  });
+if (has('clusterThumbSize')) $('clusterThumbSize').addEventListener('input', e => {
+  state.clusterThumbSize = Math.max(80, Math.min(320, Number(e.target.value || 160)));
+  localStorage.setItem('imagecluster.clusterThumbSize', String(state.clusterThumbSize));
+  if (has('clusterGallery')) $('clusterGallery').style.setProperty('--search-thumb-size', `${state.clusterThumbSize}px`);
+  renderClusterCards();
+});
+if (has('highlightClusterToggle')) $('highlightClusterToggle').addEventListener('change', e => {
+  state.highlightCluster = e.target.checked;
+  draw();
+});
+if (has('showOnlyClusterToggle')) $('showOnlyClusterToggle').addEventListener('change', e => {
+  state.showOnlyCluster = e.target.checked;
+  draw();
 });
 document.querySelectorAll('[data-close-preview]').forEach(el => el.addEventListener('click', closeImagePreview));
-document.querySelectorAll('.right-rail [data-drawer]').forEach(button => {
-  button.addEventListener('click', () => {
-    const isOpen = has('toolDrawer') && !$('toolDrawer').hidden && button.classList.contains('active');
-    if (isOpen) closeDrawer();
-    else openDrawer(button.dataset.drawer);
-  });
-});
-if (has('drawerClose')) $('drawerClose').addEventListener('click', closeDrawer);
-if (has('drawerBackdrop')) $('drawerBackdrop').addEventListener('click', closeDrawer);
+
+// Keyboard shortcuts (CODEX_GUIDE): / focus search · Esc close panel / clear search ·
+// Enter run search · G Generate · F Fit · R Reset · C toggle cluster dock. Single-letter
+// shortcuts are ignored while focus is in an INPUT/TEXTAREA/SELECT. (/ and Enter are wired
+// elsewhere: redesign_ui.js and the #searchQuery keydown handler.)
 window.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
     closeImagePreview();
-    closeDrawer();
+    const opts = document.getElementById('searchOptionsPanel');
+    if (opts && !opts.hidden) opts.hidden = true;
+    const drawer = document.getElementById('workflowDrawer');
+    if (drawer && !drawer.hidden) {
+      drawer.hidden = true;
+      document.querySelectorAll('[data-open-drawer]').forEach(b => b.classList.remove('active'));
+    }
     if (has('searchQuery') && document.activeElement === $('searchQuery')) $('searchQuery').blur();
+    clearSearch();
+    return;
   }
-  if (event.key === '/' && has('searchQuery') && document.activeElement !== $('searchQuery')) {
-    event.preventDefault();
-    $('searchQuery').focus();
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  switch (event.key.toLowerCase()) {
+    case 'g':
+      if (has('startBtn') && !$('startBtn').disabled) { event.preventDefault(); $('startBtn').click(); }
+      break;
+    case 'f':
+      if (has('fitViewBtn')) { event.preventDefault(); $('fitViewBtn').click(); }
+      break;
+    case 'r':
+      if (has('resetViewBtn')) { event.preventDefault(); $('resetViewBtn').click(); }
+      break;
+    case 'c': {
+      const toggle = document.querySelector('[data-dock-toggle]');
+      if (toggle) { event.preventDefault(); toggle.click(); }
+      break;
+    }
+    default:
+      break;
   }
-  if ((event.key === 'g' || event.key === 'G') && has('startBtn') && !$('startBtn').disabled) startJob();
-  if ((event.key === 'f' || event.key === 'F') && state.rows.length) fitToData();
-  if ((event.key === 'r' || event.key === 'R') && state.rows.length) resetView();
-  const drawerKeys = { '1': 'explore', '2': 'results', '3': 'filters', '4': 'session', '5': 'cluster', '6': 'compare', '7': 'export' };
-  if (drawerKeys[event.key] && document.activeElement?.tagName !== 'INPUT') openDrawer(drawerKeys[event.key]);
 });
-window.addEventListener('resize', resizeCanvas);
+window.addEventListener('resize', scheduleResizeCanvas);
 if ('ResizeObserver' in window) {
-  const canvasResizeObserver = new ResizeObserver(() => resizeCanvas());
-  canvasResizeObserver.observe(canvas.parentElement || canvas);
+  const resizeObserver = new ResizeObserver(scheduleResizeCanvas);
+  resizeObserver.observe(canvas.parentElement || canvas);
 }
 
 async function initFromQuery() {
   if (has('showThumbnailOutline')) $('showThumbnailOutline').checked = state.showThumbnailOutline;
-  if (has('forceThumbnails')) $('forceThumbnails').checked = state.forceThumbnails;
   if (has('showPlannedModels')) $('showPlannedModels').checked = state.showPlannedModels;
   if (has('searchThumbSize')) $('searchThumbSize').value = state.searchThumbSize;
+  if (has('clusterThumbSize')) $('clusterThumbSize').value = state.clusterThumbSize;
+  if (has('highlightClusterToggle')) $('highlightClusterToggle').checked = state.highlightCluster;
+  if (has('showOnlyClusterToggle')) $('showOnlyClusterToggle').checked = state.showOnlyCluster;
   updateSearchThumbSize(state.searchThumbSize);
-  syncReducerRadios();
-  updateModeButton();
-  updateThumbnailStatus();
+  syncReducerVisuals();
   await loadStatus();
   await loadModels();
   await loadProjectionList();
-  await loadAnalysisProjectionOptions();
-  await loadSessionsList();
   resizeCanvas();
-  updateWorkflowState();
   const params = new URLSearchParams(window.location.search);
+  const modelKey = params.get('model_key');
+  if (modelKey && has('modelKey') && [...$('modelKey').options].some(option => option.value === modelKey && !option.disabled)) {
+    $('modelKey').value = modelKey;
+    updateModelInfo();
+  }
   const jobId = params.get('job_id');
   if (!jobId) return;
   state.jobId = jobId;

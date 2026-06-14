@@ -30,3 +30,7 @@ class ClipProjectionRequest(BaseModel):
 class JobCreated(BaseModel):
     job_id: str
     status: str
+
+
+class LocalTokenRequest(BaseModel):
+    token: str = Field(default="")

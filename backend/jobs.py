@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import os
-import queue
-import sys
 import threading
 import time
 import traceback
@@ -14,280 +11,44 @@ from uuid import uuid4
 
 import numpy as np
 
-from .cache import dataset_fingerprint, dataset_hash, write_manifest
+from .cache import dataset_hash, write_manifest
 from .diagnostics import user_facing_error, write_debug_report
 from .encoders.base import encode_images
 from .encoders.registry import get_model_spec
 from .image_scan import scan_images
 from .reducers import cluster_projection, reduce_embeddings
-from .runtime_dirs import JOB_LOGS_DIR, JOBS_DIR, OUTPUT_DIR, ROOT
 from .schemas import ClipProjectionRequest
-from .version import APP_VERSION
 
-OUTPUT = OUTPUT_DIR
-TERMINAL_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
-ACTIVE_STATUSES = {"queued", "running", "cancelling"}
-MAX_WORKERS = max(1, int(os.environ.get("CLUSTERIMG_MAX_WORKERS", "1")))
-QUEUE_ENABLED = os.environ.get("CLUSTERIMG_JOB_QUEUE_ENABLED", "1") != "0"
+from project_paths import get_project_root
+
+ROOT = get_project_root()
+OUTPUT = ROOT / "output"
 
 
 @dataclass
 class JobState:
     job_id: str
-    job_type: str = "clip_projection"
-    status: str = "queued"
+    status: str = "queued"  # queued | running | completed | failed | cancelled | cancelling
     stage: str = "queued"
     done: int = 0
     total: int = 0
-    progress: float | None = None
     message: str = "Queued"
-    current_step: str | None = None
     error: str | None = None
-    warning: str | None = None
     result_path: str | None = None
-    embedding_path: str | None = None
-    search_index_path: str | None = None
     log_path: str | None = None
     debug_path: str | None = None
     recovery_hint: str | None = None
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    started_at: float | None = None
-    finished_at: float | None = None
-    created_at_iso: str = field(default_factory=lambda: _iso_now())
-    started_at_iso: str | None = None
-    finished_at_iso: str | None = None
-    updated_at_iso: str = field(default_factory=lambda: _iso_now())
     params: dict = field(default_factory=dict)
-    runtime: dict = field(default_factory=dict)
-    artifacts: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
-class JobStore:
-    def __init__(self, directory: Path = JOBS_DIR):
-        self.directory = directory
-        self.directory.mkdir(parents=True, exist_ok=True)
-
-    def path_for(self, job_id: str) -> Path:
-        return self.directory / f"{job_id}.json"
-
-    def save(self, job: JobState) -> None:
-        payload = job.to_dict()
-        path = self.path_for(job.job_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-        os.replace(tmp, path)
-
-    def load_all(self) -> dict[str, JobState]:
-        jobs: dict[str, JobState] = {}
-        for path in sorted(self.directory.glob("*.json")):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                known = {field_name for field_name in JobState.__dataclass_fields__}
-                job = JobState(**{key: value for key, value in data.items() if key in known})
-                jobs[job.job_id] = job
-            except Exception:
-                continue
-        return jobs
-
-
-STORE = JobStore()
 JOBS: dict[str, JobState] = {}
 CANCEL_REQUESTS: set[str] = set()
-LOCK = threading.RLock()
-WORK_QUEUE: queue.Queue[str] = queue.Queue()
-WORKERS_STARTED = False
-RECOVERY_DONE = False
-
-
-class JobCancelled(RuntimeError):
-    pass
-
-
-def initialize_jobs() -> None:
-    global RECOVERY_DONE, WORKERS_STARTED
-    with LOCK:
-        if not RECOVERY_DONE:
-            JOBS.update(STORE.load_all())
-            changed: list[JobState] = []
-            for job in JOBS.values():
-                if job.status in {"running", "cancelling", "queued"}:
-                    job.status = "interrupted"
-                    job.stage = "interrupted"
-                    job.message = "Backend restarted before this job finished."
-                    job.error = None
-                    job.finished_at = time.time()
-                    job.finished_at_iso = _iso_now()
-                    job.updated_at = time.time()
-                    job.updated_at_iso = _iso_now()
-                    changed.append(job)
-            for job in changed:
-                STORE.save(job)
-            RECOVERY_DONE = True
-        if not WORKERS_STARTED and QUEUE_ENABLED:
-            for index in range(MAX_WORKERS):
-                thread = threading.Thread(target=_worker_loop, name=f"clusterimg-job-worker-{index + 1}", daemon=True)
-                thread.start()
-            WORKERS_STARTED = True
-
-
-def create_clip_projection_job(req: ClipProjectionRequest, job_type: str = "clip_projection") -> JobState:
-    initialize_jobs()
-    job_id = f"clip-{time.strftime('%Y%m%d-%H%M%S')}-{uuid4().hex[:8]}"
-    params = req.model_dump() if hasattr(req, "model_dump") else req.dict()
-    log_path = JOB_LOGS_DIR / f"{job_id}.log"
-    job = JobState(
-        job_id=job_id,
-        job_type=job_type,
-        params=params,
-        log_path=str(log_path.relative_to(ROOT)),
-        runtime=_runtime_metadata(),
-        message="Queued. Waiting for the local job worker.",
-    )
-    with LOCK:
-        JOBS[job_id] = job
-        STORE.save(job)
-    _job_log(job_id, f"created job_type={job_type}")
-    if QUEUE_ENABLED:
-        WORK_QUEUE.put(job_id)
-        _job_log(job_id, "queued")
-    else:
-        thread = threading.Thread(target=_execute_job, args=(job_id,), daemon=True)
-        thread.start()
-    return job
-
-
-def cancel_job(job_id: str) -> JobState | None:
-    initialize_jobs()
-    with LOCK:
-        job = JOBS.get(job_id)
-        if job is None:
-            return None
-        if job.status in TERMINAL_STATUSES:
-            return job
-        CANCEL_REQUESTS.add(job_id)
-        if job.status == "queued":
-            job.status = "cancelled"
-            job.stage = "cancelled"
-            job.message = "Cancelled before execution."
-            job.finished_at = time.time()
-            job.finished_at_iso = _iso_now()
-        else:
-            job.status = "cancelling"
-            job.message = "Cancellation requested. The job will stop at the next safe checkpoint."
-        job.updated_at = time.time()
-        job.updated_at_iso = _iso_now()
-        STORE.save(job)
-    _job_log(job_id, "cancellation requested")
-    return job
-
-
-def get_job(job_id: str) -> JobState | None:
-    initialize_jobs()
-    with LOCK:
-        return JOBS.get(job_id)
-
-
-def list_jobs(status: str | None = None, job_type: str | None = None, limit: int | None = None, newest_first: bool = True) -> list[dict]:
-    initialize_jobs()
-    with LOCK:
-        jobs = list(JOBS.values())
-    if status:
-        jobs = [job for job in jobs if job.status == status]
-    if job_type:
-        jobs = [job for job in jobs if job.job_type == job_type]
-    jobs.sort(key=lambda j: j.created_at, reverse=newest_first)
-    if limit:
-        jobs = jobs[:limit]
-    return [job.to_dict() for job in jobs]
-
-
-def job_counts() -> dict:
-    initialize_jobs()
-    with LOCK:
-        active = len([job for job in JOBS.values() if job.status in {"running", "cancelling"}])
-        queued = len([job for job in JOBS.values() if job.status == "queued"])
-    return {
-        "active": active,
-        "queued": queued,
-        "max_workers": MAX_WORKERS,
-        "queue_enabled": QUEUE_ENABLED,
-        "job_store": str(JOBS_DIR),
-    }
-
-
-def list_projection_files() -> list[dict]:
-    proj_dir = OUTPUT / "projections"
-    proj_dir.mkdir(parents=True, exist_ok=True)
-    items = []
-    for path in sorted(proj_dir.glob("*.tsv"), key=lambda p: p.stat().st_mtime, reverse=True):
-        validation = validate_projection_tsv(path)
-        items.append({
-            "name": path.name,
-            "relative_path": path.relative_to(ROOT).as_posix(),
-            "modified_at": path.stat().st_mtime,
-            "size": path.stat().st_size,
-            "valid": validation["valid"],
-            "validation_error": validation.get("error"),
-        })
-    return items
-
-
-def validate_projection_tsv(path: Path) -> dict:
-    required = {"filename", "relative_path", "x", "y", "reducer"}
-    try:
-        if not path.exists():
-            return {"valid": False, "error": "missing file"}
-        with path.open("r", encoding="utf-8", newline="") as fh:
-            reader = csv.reader(fh, delimiter="\t")
-            header = next(reader, [])
-        columns = set(header)
-        if not ({"model_key"} & columns or {"embedding_model", "model_family"} & columns):
-            return {"valid": False, "error": "missing model column"}
-        missing = sorted(required - columns)
-        if missing:
-            return {"valid": False, "error": f"missing columns: {', '.join(missing)}"}
-        return {"valid": True, "columns": header}
-    except Exception as exc:
-        return {"valid": False, "error": str(exc)}
-
-
-def _worker_loop() -> None:
-    while True:
-        job_id = WORK_QUEUE.get()
-        try:
-            _execute_job(job_id)
-        finally:
-            WORK_QUEUE.task_done()
-
-
-def _execute_job(job_id: str) -> None:
-    with LOCK:
-        job = JOBS.get(job_id)
-        if job is None:
-            return
-        if job.status == "cancelled":
-            _job_log(job_id, "skipping cancelled queued job")
-            return
-        if job.status != "queued":
-            return
-        params = dict(job.params)
-        job.status = "running"
-        job.stage = "starting"
-        job.current_step = "starting"
-        job.message = "Starting job."
-        job.started_at = time.time()
-        job.started_at_iso = _iso_now()
-        job.updated_at = time.time()
-        job.updated_at_iso = _iso_now()
-        STORE.save(job)
-    _job_log(job_id, "started")
-    req = ClipProjectionRequest(**params)
-    _run_clip_projection(job_id, req)
+LOCK = threading.Lock()
 
 
 def _set(job_id: str, **updates) -> None:
@@ -295,22 +56,66 @@ def _set(job_id: str, **updates) -> None:
         job = JOBS[job_id]
         for key, value in updates.items():
             setattr(job, key, value)
-        if "stage" in updates and "current_step" not in updates:
-            job.current_step = updates["stage"]
-        total = getattr(job, "total", 0) or 0
-        done = getattr(job, "done", 0) or 0
-        job.progress = round(done / total, 4) if total else None
         job.updated_at = time.time()
-        job.updated_at_iso = _iso_now()
-        STORE.save(job)
-    if "message" in updates:
-        _job_log(job_id, str(updates["message"]))
+
+
+def create_clip_projection_job(req: ClipProjectionRequest) -> JobState:
+    job_id = f"clip-{time.strftime('%Y%m%d-%H%M%S')}-{uuid4().hex[:8]}"
+    params = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+    job = JobState(job_id=job_id, params=params)
+    with LOCK:
+        JOBS[job_id] = job
+    thread = threading.Thread(target=_run_clip_projection, args=(job_id, req), daemon=True)
+    thread.start()
+    return job
+
+
+def cancel_job(job_id: str) -> JobState | None:
+    with LOCK:
+        job = JOBS.get(job_id)
+        if job is None:
+            return None
+        if job.status in {"completed", "failed", "cancelled"}:
+            return job
+        CANCEL_REQUESTS.add(job_id)
+        job.status = "cancelling"
+        job.message = "Cancellation requested"
+        job.updated_at = time.time()
+        return job
 
 
 def _check_cancel(job_id: str) -> None:
     with LOCK:
         if job_id in CANCEL_REQUESTS:
             raise JobCancelled("Job cancelled by user")
+
+
+def get_job(job_id: str) -> JobState | None:
+    with LOCK:
+        return JOBS.get(job_id)
+
+
+def list_jobs() -> list[dict]:
+    with LOCK:
+        return [job.to_dict() for job in sorted(JOBS.values(), key=lambda j: j.created_at, reverse=True)]
+
+
+def list_projection_files() -> list[dict]:
+    proj_dir = OUTPUT / "projections"
+    proj_dir.mkdir(parents=True, exist_ok=True)
+    items = []
+    for path in sorted(proj_dir.glob("*.tsv"), key=lambda p: p.stat().st_mtime, reverse=True):
+        items.append({
+            "name": path.name,
+            "relative_path": path.relative_to(ROOT).as_posix(),
+            "modified_at": path.stat().st_mtime,
+            "size": path.stat().st_size,
+        })
+    return items
+
+
+class JobCancelled(RuntimeError):
+    pass
 
 
 def _safe_image_dir(image_dir: str) -> Path:
@@ -369,14 +174,7 @@ def _run_clip_projection(job_id: str, req: ClipProjectionRequest) -> None:
         projection_meta_path = proj_dir / f"{timestamp}_{ds_hash}_{model_tag}_{req.reducer}{cluster_tag}_projection.json"
         manifest_path = emb_dir / f"{ds_hash}_{model_tag}_manifest.json"
 
-        manifest = _load_manifest(manifest_path)
-        can_use_cache = bool(
-            req.use_cache
-            and emb_path.exists()
-            and manifest.get("complete", True)
-            and manifest.get("count") == len(paths)
-        )
-        if can_use_cache:
+        if req.use_cache and emb_path.exists():
             _set(job_id, stage="cache", done=len(paths), total=len(paths), message="Loading cached embeddings")
             embeddings = np.load(emb_path)
             encoded_paths = paths
@@ -391,10 +189,9 @@ def _run_clip_projection(job_id: str, req: ClipProjectionRequest) -> None:
                 if not paths:
                     raise RuntimeError("No valid images could be encoded.")
             _check_cancel(job_id)
-            _atomic_save_npy(emb_path, embeddings)
+            np.save(emb_path, embeddings)
             write_manifest(manifest_path, {
                 "dataset_hash": ds_hash,
-                "dataset_fingerprint": dataset_fingerprint(paths),
                 "model_key": spec.key,
                 "model_family": spec.family,
                 "model_label": spec.label,
@@ -404,14 +201,9 @@ def _run_clip_projection(job_id: str, req: ClipProjectionRequest) -> None:
                 "image_dir": image_dir_label,
                 "count": len(paths),
                 "embedding_path": str(emb_path.relative_to(ROOT)),
-                "app_version": APP_VERSION,
-                "created_at": _iso_now(),
-                "complete": True,
+                "created_at": time.time(),
             })
 
-        current_artifacts = dict(JOBS[job_id].artifacts) if job_id in JOBS else {}
-        current_artifacts["embedding_path"] = str(emb_path.relative_to(ROOT))
-        _set(job_id, embedding_path=str(emb_path.relative_to(ROOT)), artifacts=current_artifacts)
         _check_cancel(job_id)
         _set(job_id, stage="reduction", done=0, total=len(paths), message=f"Running {req.reducer.upper()} projection")
         coords = reduce_embeddings(
@@ -438,15 +230,14 @@ def _run_clip_projection(job_id: str, req: ClipProjectionRequest) -> None:
                 )
             except Exception as cluster_exc:
                 cluster_warning = f"Clustering failed and projection was saved without clusters: {cluster_exc}"
-                cluster_log_path = JOB_LOGS_DIR / f"{job_id}-clustering.log"
+                cluster_log_path = OUTPUT / "logs" / f"{job_id}-clustering.log"
                 cluster_log_path.parent.mkdir(parents=True, exist_ok=True)
                 cluster_log_path.write_text(traceback.format_exc(), encoding="utf-8")
-                _set(job_id, warning=cluster_warning, message=cluster_warning, log_path=str(cluster_log_path.relative_to(ROOT)))
+                _set(job_id, message=cluster_warning, log_path=str(cluster_log_path.relative_to(ROOT)))
             _check_cancel(job_id)
 
         rows = []
         for idx, (path, xy) in enumerate(zip(paths, coords), start=1):
-            _check_cancel(job_id)
             row = {
                 "filename": path.name,
                 "relative_path": path.relative_to(ROOT).as_posix(),
@@ -468,8 +259,12 @@ def _run_clip_projection(job_id: str, req: ClipProjectionRequest) -> None:
                 row["cluster_method"] = cluster_info["method"]
             rows.append(row)
 
-        _atomic_write_tsv(projection_path, rows)
-        projection_meta = {
+        with projection_path.open("w", encoding="utf-8", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()), delimiter="\t")
+            writer.writeheader()
+            writer.writerows(rows)
+
+        projection_meta_path.write_text(json.dumps({
             "model_key": spec.key,
             "model_family": spec.family,
             "model_label": spec.label,
@@ -483,9 +278,7 @@ def _run_clip_projection(job_id: str, req: ClipProjectionRequest) -> None:
             "embedding_id": emb_path.stem,
             "embedding_path": str(emb_path.relative_to(ROOT)),
             "projection_path": str(projection_path.relative_to(ROOT)),
-            "artifact_status": "complete",
-            "app_version": APP_VERSION,
-            "created_at": _iso_now(),
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "clustering": {
                 "enabled": bool(req.cluster_enabled),
                 "method": "kmeans" if req.cluster_enabled else None,
@@ -495,8 +288,7 @@ def _run_clip_projection(job_id: str, req: ClipProjectionRequest) -> None:
                 "applied": cluster_info is not None,
                 "warning": cluster_warning,
             },
-        }
-        _atomic_write_json(projection_meta_path, projection_meta)
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
 
         _set(
             job_id,
@@ -505,28 +297,16 @@ def _run_clip_projection(job_id: str, req: ClipProjectionRequest) -> None:
             done=len(paths),
             total=len(paths),
             message="Projection completed" + (f" ({cluster_warning})" if cluster_warning else ""),
-            warning=cluster_warning,
             result_path=str(projection_path.relative_to(ROOT)),
-            artifacts={
-                "projection_tsv": str(projection_path.relative_to(ROOT)),
-                "projection_metadata": str(projection_meta_path.relative_to(ROOT)),
-                "embedding_path": str(emb_path.relative_to(ROOT)),
-                "embedding_manifest": str(manifest_path.relative_to(ROOT)),
-            },
-            finished_at=time.time(),
-            finished_at_iso=_iso_now(),
         )
-        _job_log(job_id, "completed")
     except JobCancelled as exc:
         with LOCK:
             CANCEL_REQUESTS.discard(job_id)
-        _set(job_id, status="cancelled", stage="cancelled", error=None, message=str(exc), finished_at=time.time(), finished_at_iso=_iso_now())
-        _job_log(job_id, "cancelled")
+        _set(job_id, status="cancelled", stage="cancelled", error=None, message=str(exc))
     except Exception as exc:
-        log_path = JOB_LOGS_DIR / f"{job_id}.log"
+        log_path = OUTPUT / "logs" / f"{job_id}.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        with log_path.open("a", encoding="utf-8") as fh:
-            fh.write("\n" + traceback.format_exc())
+        log_path.write_text(traceback.format_exc(), encoding="utf-8")
         params = req.model_dump() if hasattr(req, "model_dump") else req.dict()
         debug_path = write_debug_report(job_id, {
             "job_id": job_id,
@@ -546,62 +326,4 @@ def _run_clip_projection(job_id: str, req: ClipProjectionRequest) -> None:
             message=f"Failed: {friendly}",
             log_path=str(log_path.relative_to(ROOT)),
             debug_path=str(debug_path.relative_to(ROOT)),
-            finished_at=time.time(),
-            finished_at_iso=_iso_now(),
         )
-        _job_log(job_id, f"failed: {friendly}")
-
-
-def _atomic_write_tsv(path: Path, rows: list[dict]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with tmp.open("w", encoding="utf-8", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()), delimiter="\t")
-        writer.writeheader()
-        writer.writerows(rows)
-    os.replace(tmp, path)
-
-
-def _atomic_write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
-
-
-def _atomic_save_npy(path: Path, array: np.ndarray) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with tmp.open("wb") as fh:
-        np.save(fh, array)
-    os.replace(tmp, path)
-
-
-def _load_manifest(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def _runtime_metadata() -> dict:
-    return {
-        "app_version": APP_VERSION,
-        "python_version": sys.version,
-        "platform": sys.platform,
-        "max_workers": MAX_WORKERS,
-    }
-
-
-def _job_log(job_id: str, message: str) -> None:
-    JOB_LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    line = f"{_iso_now()} {message}\n"
-    with (JOB_LOGS_DIR / f"{job_id}.log").open("a", encoding="utf-8") as fh:
-        fh.write(line)
-
-
-def _iso_now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%S")
-
-
-initialize_jobs()

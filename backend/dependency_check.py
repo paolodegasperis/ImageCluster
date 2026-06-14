@@ -32,7 +32,7 @@ DEPENDENCIES = [
 ]
 
 OPTIONAL_DEPENDENCIES = [
-    DependencyReport("imagebind", "imagebind", False, required=False, note="Optional. Required only for Meta ImageBind. Use the optional ImageBind installer script."),
+    DependencyReport("imagebind", "imagebind", False, required=False, note="Optional. Required only for Meta ImageBind. Use the optional installer in bootstrap/windows or bootstrap/macos."),
 ]
 
 
@@ -84,25 +84,25 @@ def pytorch_install_advice() -> dict:
         return {
             **common,
             "platform": "Windows 11 / Windows",
-            "recommended": "Run Start Windows 11 CPU.bat first. Use Start Windows 11 CUDA.bat only with a compatible NVIDIA GPU and driver.",
-            "cpu_launcher": "Start Windows 11 CPU.bat",
-            "cuda_launcher": "Start Windows 11 CUDA.bat",
+            "recommended": "Run Start Windows.bat first. Choose CPU for the safest setup, or CUDA only with a compatible NVIDIA GPU and driver.",
+            "cpu_launcher": "Start Windows.bat",
+            "cuda_launcher": "Start Windows.bat",
             "cpu_command": r".venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu",
             "cuda_command": r".venv\Scripts\python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128",
             "after_pytorch": r".venv\Scripts\python.exe -m pip install -r requirements-core.txt",
-            "imagebind_note": "ImageBind is optional. Use Install Optional ImageBind Windows.bat after the app has created .venv.",
+            "imagebind_note": "ImageBind is optional. Use bootstrap/windows/install_optional_imagebind.bat after the app has created .venv.",
         }
     if key == "macos_apple_silicon":
         return {
             **common,
             "platform": "macOS Apple Silicon",
-            "recommended": "Run Start macOS Apple Silicon.command. The standard macOS PyTorch wheel can use MPS acceleration when available.",
-            "cpu_launcher": "Start macOS Apple Silicon.command",
+            "recommended": "Run Start macOS.command. The standard macOS PyTorch wheel can use MPS acceleration when available.",
+            "cpu_launcher": "Start macOS.command",
             "cuda_launcher": "CUDA is not used on Apple Silicon.",
             "cpu_command": ".venv/bin/python -m pip install torch torchvision",
             "cuda_command": "CUDA is not used on macOS.",
             "after_pytorch": ".venv/bin/python -m pip install -r requirements-core.txt",
-            "imagebind_note": "ImageBind is optional. Use Install Optional ImageBind macOS.command after the app has created .venv.",
+            "imagebind_note": "ImageBind is optional. Use bootstrap/macos/install_optional_imagebind.command after the app has created .venv.",
         }
     if key == "macos_intel":
         return {
@@ -114,7 +114,7 @@ def pytorch_install_advice() -> dict:
             "cpu_command": ".venv/bin/python -m pip install torch torchvision",
             "cuda_command": "CUDA is not used on macOS.",
             "after_pytorch": ".venv/bin/python -m pip install -r requirements-core.txt",
-            "imagebind_note": "ImageBind is optional. Use Install Optional ImageBind macOS.command after the app has created .venv.",
+            "imagebind_note": "ImageBind is optional. Use bootstrap/macos/install_optional_imagebind.command after the app has created .venv.",
         }
     return {
         **common,

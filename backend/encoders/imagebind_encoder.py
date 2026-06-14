@@ -27,7 +27,7 @@ def encode_with_imagebind(
     except Exception as exc:
         raise RuntimeError(
             "ImageBind is optional and is not installed in this environment. "
-            "Use the optional installer script (Install Optional ImageBind Windows.bat or Install Optional ImageBind macOS.command), then restart ImagePlot-CLIP."
+            "Use the optional installer script in bootstrap/windows or bootstrap/macos, then restart ImagePlot-CLIP."
         ) from exc
 
     device = "cuda" if torch.cuda.is_available() else "cpu"

@@ -26,8 +26,6 @@ def list_embedding_indexes() -> list[dict[str, Any]]:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        if manifest.get("complete") is False:
-            continue
         spec = MODEL_REGISTRY.get(manifest.get("model_key", ""))
         embedding_path = _resolve_embedding_path(manifest)
         embedding_id = manifest_path.name.removesuffix("_manifest.json")

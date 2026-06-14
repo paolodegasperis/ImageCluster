@@ -6,9 +6,7 @@ from typing import Callable
 import numpy as np
 
 from .imagebind_encoder import encode_with_imagebind
-from .llava_onevision_encoder import encode_with_llava_onevision
 from .openclip_encoder import encode_with_openclip
-from .qwen25_vl_encoder import encode_with_qwen25_vl
 from .registry import ModelSpec
 from .transformers_encoder import encode_with_transformers
 from .transformers_encoder import encode_texts_with_transformers
@@ -24,12 +22,12 @@ def encode_images(
         return encode_with_openclip(image_paths, spec, batch_size, progress)
     if spec.provider in {"transformers_clip", "transformers_image_features", "transformers_metaclip2", "transformers_vision_pool", "nomic_transformers"}:
         return encode_with_transformers(image_paths, spec, batch_size, progress)
-    if spec.provider == "llava_onevision_visual":
-        return encode_with_llava_onevision(image_paths, spec, batch_size, progress)
-    if spec.provider == "qwen25_vl_visual":
-        return encode_with_qwen25_vl(image_paths, spec, batch_size, progress)
     if spec.provider == "imagebind":
         return encode_with_imagebind(image_paths, spec, batch_size, progress)
+    if spec.provider == "sentence_transformers":
+        from .sentence_transformers_encoder import encode_with_sentence_transformers
+
+        return encode_with_sentence_transformers(image_paths, spec, batch_size, progress)
     raise RuntimeError(f"Unsupported embedding provider: {spec.provider}")
 
 
@@ -42,4 +40,8 @@ def encode_texts(texts: list[str], spec: ModelSpec, batch_size: int = 32) -> np.
         return encode_texts_with_openclip(texts, spec, batch_size)
     if spec.provider in {"transformers_clip", "transformers_image_features", "transformers_metaclip2"}:
         return encode_texts_with_transformers(texts, spec, batch_size)
+    if spec.provider == "sentence_transformers":
+        from .sentence_transformers_encoder import encode_texts_with_sentence_transformers
+
+        return encode_texts_with_sentence_transformers(texts, spec, batch_size)
     raise RuntimeError(f"Text search is not implemented for provider: {spec.provider}")

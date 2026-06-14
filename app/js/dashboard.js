@@ -27,6 +27,11 @@ async function loadStatus() {
     const data = await fetchJson('/api/status');
     const missing = (data.dependencies || []).filter(dep => dep.required && !dep.installed);
     setText('statusText', missing.length ? `Missing dependencies: ${missing.map(d => d.name).join(', ')}` : 'All required dependencies are available.');
+    setText('dashboardReadyChip', missing.length ? `${missing.length} missing` : 'All dependencies ready');
+    const readyChip = document.getElementById('dashboardReadyChip');
+    if (readyChip) {
+      readyChip.className = `chip dot ${missing.length ? 'chip-warn' : 'chip-success'}`;
+    }
     const optional = data.optional_dependencies || [];
     setHTML(
       'deps',
@@ -35,7 +40,8 @@ async function loadStatus() {
     );
     if (missing.length && data.install_advice) {
       const a = data.install_advice;
-      showElement('installAdvice');
+      const adviceBox = document.getElementById('setupAdviceBox');
+      if (adviceBox) adviceBox.hidden = false;
       setText('installAdvice', [
         `Detected platform: ${a.platform}`,
         a.recommended || '',
@@ -58,7 +64,8 @@ async function loadStatus() {
         a.imagebind_note || ''
       ].join('\n'));
     } else {
-      hideElement('installAdvice');
+      const adviceBox = document.getElementById('setupAdviceBox');
+      if (adviceBox) adviceBox.hidden = true;
     }
   } catch (err) {
     setText('statusText', `Cannot read status: ${err.message}`);
@@ -71,12 +78,20 @@ async function scanImageFolder() {
     const data = await fetchJson('/api/images/scan?image_dir=img');
     if (!data.ok) {
       setText('dashboardImageDirStatus', data.error || 'The img folder could not be scanned.');
+      setText('dashboardScanChip', 'Scan failed');
       return;
     }
     const warning = data.warnings && data.warnings.length ? ` ${data.warnings.join(' ')}` : '';
     setText('dashboardImageDirStatus', `${data.count || 0} image(s) found in img.${warning}`);
+    setText('dashboardScanChip', 'Scanned');
+    const scanChip = document.getElementById('dashboardScanChip');
+    if (scanChip) scanChip.className = 'chip chip-success dot';
+    setText('dashboardStatImages', `${data.count || 0}`);
+    const subfolders = data.extensions ? Object.keys(data.extensions).length : 0;
+    setText('dashboardStatSubfolders', String(subfolders));
   } catch (err) {
     setText('dashboardImageDirStatus', `Cannot scan img folder: ${err.message}`);
+    setText('dashboardScanChip', 'Scan failed');
   }
 }
 

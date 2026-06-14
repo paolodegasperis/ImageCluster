@@ -6,14 +6,16 @@ import os
 import platform
 import subprocess
 import sys
+import webbrowser
+import shutil
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+from project_paths import get_project_root
+
+ROOT = get_project_root()
 VENV = ROOT / ".venv"
 REQ_CORE = ROOT / "requirements-core.txt"
 REQ_FULL = ROOT / "requirements.txt"
-CONSTRAINTS = ROOT / "constraints.txt"
-VERSION_FILE = ROOT / "VERSION"
 STAMP = VENV / ".imageplot_launcher.sha256"
 RUNTIME_DIRS = [
     ROOT / "img",
@@ -21,10 +23,7 @@ RUNTIME_DIRS = [
     ROOT / "output" / "embeddings",
     ROOT / "output" / "projections",
     ROOT / "output" / "logs",
-    ROOT / "output" / "logs" / "jobs",
-    ROOT / "output" / "jobs",
 ]
-APP_VERSION = VERSION_FILE.read_text(encoding="utf-8").strip() if VERSION_FILE.exists() else "0.5.3"
 
 PYTORCH_COMMANDS = {
     "windows_cpu": [
@@ -45,6 +44,8 @@ PYTORCH_COMMANDS = {
 }
 
 MIN_PYTHON = (3, 10)
+PYTHON_DOWNLOAD_URL = "https://www.python.org/downloads/"
+PYTORCH_SELECTOR_URL = "https://pytorch.org/get-started/locally/"
 
 
 
@@ -79,6 +80,36 @@ def check_python_version() -> None:
         )
 
 
+def open_url(url: str) -> None:
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+
+
+def show_fatal_dialog(title: str, message: str, *, help_url: str | None = None) -> None:
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        try:
+            if help_url:
+                wants_help = messagebox.askyesno(title, message + "\n\nAprire il link di aiuto?", parent=root)
+                if wants_help:
+                    open_url(help_url)
+            else:
+                messagebox.showerror(title, message, parent=root)
+        finally:
+            root.destroy()
+    except Exception:
+        print(f"{title}: {message}", file=sys.stderr)
+        if help_url:
+            print(help_url, file=sys.stderr)
+
+
 def file_hash(path: Path) -> str:
     if not path.exists():
         return ""
@@ -90,7 +121,7 @@ def launcher_hash(torch_variant: str) -> str:
         f"torch_variant={torch_variant}",
         f"requirements_core={file_hash(REQ_CORE)}",
         f"requirements_full={file_hash(REQ_FULL)}",
-        "launcher_version=5.2",
+        "launcher_version=6.0",
     ]
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
@@ -98,11 +129,33 @@ def launcher_hash(torch_variant: str) -> str:
 def ensure_venv() -> Path:
     if not VENV.exists():
         print_step("Creating the local Python environment")
-        run([sys.executable, "-m", "venv", str(VENV)])
+        bootstrap = bootstrap_python_command()
+        run(bootstrap + ["-m", "venv", str(VENV)])
     py = venv_python()
     if not py.exists():
         raise RuntimeError(f"Virtual environment Python not found: {py}")
     return py
+
+
+def bootstrap_python_command() -> list[str]:
+    if not getattr(sys, "frozen", False):
+        return [sys.executable]
+
+    candidates: list[list[str]] = []
+    if platform.system() == "Windows":
+        candidates = [["py", "-3"], ["python"], ["python3"]]
+    else:
+        candidates = [["python3"], ["python"]]
+
+    for candidate in candidates:
+        executable = candidate[0]
+        if shutil.which(executable):
+            return candidate
+
+    raise RuntimeError(
+        "A system Python interpreter could not be found. "
+        "Install Python 3.10 or newer and run the launcher again."
+    )
 
 
 def python_exec(py: Path, pip_args: list[str]) -> list[str]:
@@ -166,10 +219,7 @@ def install_core_requirements(py: Path) -> None:
         raise RuntimeError("requirements-core.txt not found. The project folder may be incomplete.")
     print_step("Installing ImagePlot-CLIP libraries")
     run([str(py), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"])
-    cmd = [str(py), "-m", "pip", "install", "-r", str(REQ_CORE)]
-    if CONSTRAINTS.exists():
-        cmd.extend(["-c", str(CONSTRAINTS)])
-    run(cmd)
+    run([str(py), "-m", "pip", "install", "-r", str(REQ_CORE)])
 
 
 def requirements_current(torch_variant: str) -> bool:
@@ -199,7 +249,7 @@ def print_platform_advice(torch_variant: str) -> None:
         print("- CUDA is not used on macOS.")
     else:
         print("For Linux or other systems, check the official PyTorch selector if installation fails:")
-        print("https://pytorch.org/get-started/locally/")
+        print(PYTORCH_SELECTOR_URL)
     print("")
 
 
@@ -214,8 +264,12 @@ def verify_required_modules(py: Path) -> None:
 
 
 def launch_app(py: Path) -> None:
-    print_step("Starting ImagePlot-CLIP")
+    print_step("Starting ImageCluster")
     run([str(py), "run.py"])
+
+
+def dependency_install_failed(message: str) -> None:
+    show_fatal_dialog("ImagePlot-CLIP - dependency problem", message)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -241,42 +295,65 @@ def main(argv: list[str] | None = None) -> None:
     check_python_version()
     ensure_runtime_dirs()
     torch_variant = detect_variant(args.torch)
-    print_step(f"ClusterIMG-V-52 v{APP_VERSION} launcher")
+    print_step("ImagePlot-CLIP v6.0 launcher")
     print(f"Project folder: {ROOT}")
     print_platform_advice(torch_variant)
 
     py = ensure_venv()
 
-    if args.reinstall or not requirements_current(torch_variant):
-        install_pytorch(py, torch_variant, force=args.reinstall)
-        install_core_requirements(py)
-        verify_required_modules(py)
-        write_stamp(torch_variant)
-    else:
-        print("Local environment already prepared. Starting without reinstalling libraries.", flush=True)
+    try:
+        if args.reinstall or not requirements_current(torch_variant):
+            install_pytorch(py, torch_variant, force=args.reinstall)
+            install_core_requirements(py)
+            verify_required_modules(py)
+            write_stamp(torch_variant)
+        else:
+            print("Local environment already prepared. Starting without reinstalling libraries.", flush=True)
 
-    if not args.no_start:
-        launch_app(py)
+        if not args.no_start:
+            launch_app(py)
+    except RuntimeError as exc:
+        dependency_install_failed(
+            "ImagePlot-CLIP could not complete the first start.\n\n"
+            f"{exc}\n\n"
+            "The app can usually recover by reconnecting to the internet and running the launcher again."
+        )
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main())
     except subprocess.CalledProcessError as exc:
-        print("")
-        print("A command failed while preparing or starting ImagePlot-CLIP.", file=sys.stderr)
-        print(f"Exit code: {exc.returncode}", file=sys.stderr)
+        message = (
+            "A command failed while preparing or starting ImagePlot-CLIP.\n\n"
+            f"Exit code: {exc.returncode}\n\n"
+            "Suggested checks:\n"
+            "- Confirm that Python 3.10 or newer is installed.\n"
+            "- Confirm that the computer is connected to the internet on first launch.\n"
+            "- On Windows, use the CPU launcher first unless NVIDIA CUDA is already configured.\n"
+            f"- If PyTorch fails, use the official selector: {PYTORCH_SELECTOR_URL}"
+        )
         print("", file=sys.stderr)
-        print("Suggested checks:", file=sys.stderr)
-        print("- Confirm that Python 3.10 or newer is installed.", file=sys.stderr)
-        print("- Confirm that the computer is connected to the internet on first launch.", file=sys.stderr)
-        print("- On Windows, use the CPU launcher first unless NVIDIA CUDA is already configured.", file=sys.stderr)
-        print("- If PyTorch fails, use the official selector: https://pytorch.org/get-started/locally/", file=sys.stderr)
-        raise
+        print(message, file=sys.stderr)
+        show_fatal_dialog(
+            "ImagePlot-CLIP launch failed",
+            message,
+            help_url=PYTHON_DOWNLOAD_URL,
+        )
+        sys.exit(1)
     except Exception as exc:
-        print("")
-        print(f"Launcher error: {exc}", file=sys.stderr)
+        message = (
+            f"Launcher error: {exc}\n\n"
+            "The project files are intact, but the local environment could not be prepared.\n"
+            "Use the CPU launcher as the safest first attempt."
+        )
         print("", file=sys.stderr)
-        print("The project files are intact, but the local environment could not be prepared.", file=sys.stderr)
-        print("Use the CPU launcher as the safest first attempt.", file=sys.stderr)
-        raise
+        print(message, file=sys.stderr)
+        show_fatal_dialog(
+            "ImagePlot-CLIP launch failed",
+            message,
+            help_url=PYTHON_DOWNLOAD_URL,
+        )
+        sys.exit(1)

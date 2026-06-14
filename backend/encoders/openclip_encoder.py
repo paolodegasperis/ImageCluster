@@ -6,6 +6,7 @@ from typing import Callable
 import numpy as np
 from PIL import Image
 
+from ..config_store import apply_hf_token_to_environment
 from .registry import ModelSpec
 
 
@@ -19,6 +20,7 @@ def encode_with_openclip(
     import open_clip
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    apply_hf_token_to_environment()
     if spec.provider == "openclip_hf_hub" or spec.model_id.startswith("hf-hub:"):
         model, _, preprocess = open_clip.create_model_and_transforms(spec.model_id)
     else:
@@ -63,6 +65,7 @@ def encode_texts_with_openclip(texts: list[str], spec: ModelSpec, batch_size: in
         raise RuntimeError("No text queries were provided.")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    apply_hf_token_to_environment()
     if spec.provider == "openclip_hf_hub" or spec.model_id.startswith("hf-hub:"):
         model, _, _ = open_clip.create_model_and_transforms(spec.model_id)
     else:

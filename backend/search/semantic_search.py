@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 import time
 import traceback
 from pathlib import Path
@@ -131,10 +130,9 @@ def _write_search_outputs(timestamp: str, model_key: str, payload: dict[str, Any
     safe_model = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in model_key)
     json_path = search_dir / f"{timestamp}_{safe_model}_search.json"
     tsv_path = search_dir / f"{timestamp}_{safe_model}_search.tsv"
-    _atomic_write_text(json_path, json.dumps(payload, ensure_ascii=False, indent=2))
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     fields = ["rank", "filename", "relative_path", "score", "query", "model_key", "embedding_id", "x", "y", "cluster"]
-    tmp_tsv = tsv_path.with_suffix(tsv_path.suffix + ".tmp")
-    with tmp_tsv.open("w", encoding="utf-8", newline="") as fh:
+    with tsv_path.open("w", encoding="utf-8", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fields, delimiter="\t")
         writer.writeheader()
         for row in payload["results"]:
@@ -150,7 +148,6 @@ def _write_search_outputs(timestamp: str, model_key: str, payload: dict[str, Any
                 "y": row.get("y"),
                 "cluster": row.get("cluster"),
             })
-    os.replace(tmp_tsv, tsv_path)
 
 
 def _write_search_debug(timestamp: str, context: dict[str, Any], exc: Exception | None) -> None:
@@ -161,14 +158,7 @@ def _write_search_debug(timestamp: str, context: dict[str, Any], exc: Exception 
         debug["exception_type"] = type(exc).__name__
         debug["exception_message"] = str(exc)
         debug["traceback"] = traceback.format_exc()
-        _atomic_write_text(logs_dir / f"search_{timestamp}.log", debug["traceback"])
+        (logs_dir / f"search_{timestamp}.log").write_text(debug["traceback"], encoding="utf-8")
     else:
         debug["status"] = "ok"
-    _atomic_write_text(logs_dir / f"search_{timestamp}.debug.json", json.dumps(debug, ensure_ascii=False, indent=2))
-
-
-def _atomic_write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    (logs_dir / f"search_{timestamp}.debug.json").write_text(json.dumps(debug, ensure_ascii=False, indent=2), encoding="utf-8")

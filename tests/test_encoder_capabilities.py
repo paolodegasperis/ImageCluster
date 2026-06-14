@@ -14,12 +14,7 @@ def test_text_search_requires_text_embedding():
 
 
 def test_image_only_models_do_not_advertise_text_search():
-    image_only = [
-        "dinov2_base",
-        "nomic_embed_vision_v1_5",
-        "llava_onevision_qwen2_05b_image_only",
-        "qwen25_vl_3b_image_only",
-    ]
+    image_only = ["dinov2_base", "nomic_embed_vision_v1_5"]
     for key in image_only:
         assert MODEL_REGISTRY[key].supports_text_embedding is False
         assert MODEL_REGISTRY[key].supports_text_search is False

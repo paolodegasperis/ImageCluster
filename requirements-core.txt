@@ -11,5 +11,3 @@ open_clip_torch
 transformers
 huggingface_hub
 einops
-timm
-safetensors

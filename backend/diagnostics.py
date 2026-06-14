@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import importlib.metadata
 import json
 import platform
 import sys
@@ -9,7 +8,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+from project_paths import get_project_root
+
+ROOT = get_project_root()
 OUTPUT = ROOT / "output"
 
 IMPORTANT_IMPORTS = [
@@ -27,8 +28,6 @@ IMPORTANT_IMPORTS = [
     "huggingface_hub",
     "einops",
     "imagebind",
-    "timm",
-    "safetensors",
 ]
 
 
@@ -57,13 +56,6 @@ def import_report() -> dict[str, bool]:
     return {name: importlib.util.find_spec(name) is not None for name in IMPORTANT_IMPORTS}
 
 
-def package_version(package: str) -> str | None:
-    try:
-        return importlib.metadata.version(package)
-    except Exception:
-        return None
-
-
 def collect_system_report(extra: dict[str, Any] | None = None) -> dict[str, Any]:
     report: dict[str, Any] = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -73,46 +65,12 @@ def collect_system_report(extra: dict[str, Any] | None = None) -> dict[str, Any]
         "python_version": sys.version,
         "python_executable": sys.executable,
         "project_root": str(ROOT),
-        "cwd": str(Path.cwd()),
-        "output_dir": str(OUTPUT),
-        "output_dir_exists": OUTPUT.exists(),
-        "output_dir_writable": _is_writable(OUTPUT),
-        "img_dir": str(ROOT / "img"),
-        "img_dir_exists": (ROOT / "img").exists(),
-        "img_dir_readable": (ROOT / "img").is_dir(),
         "imports": import_report(),
-        "package_versions": {
-            "fastapi": package_version("fastapi"),
-            "uvicorn": package_version("uvicorn"),
-            "pillow": package_version("pillow"),
-            "numpy": package_version("numpy"),
-            "pandas": package_version("pandas"),
-            "scikit-learn": package_version("scikit-learn"),
-            "umap-learn": package_version("umap-learn"),
-            "torch": package_version("torch"),
-            "torchvision": package_version("torchvision"),
-            "open_clip_torch": package_version("open_clip_torch"),
-            "transformers": package_version("transformers"),
-            "huggingface_hub": package_version("huggingface_hub"),
-            "timm": package_version("timm"),
-            "safetensors": package_version("safetensors"),
-        },
         "torch": torch_report(),
     }
     if extra:
         report["context"] = extra
     return report
-
-
-def _is_writable(path: Path) -> bool:
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-        probe = path / ".write-test"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink(missing_ok=True)
-        return True
-    except Exception:
-        return False
 
 
 def write_debug_report(job_id: str, extra: dict[str, Any] | None = None) -> Path:
@@ -129,7 +87,7 @@ def user_facing_error(exc: Exception) -> str:
     if "basemodeloutputwithpooling" in lower and "norm" in lower:
         return (
             "The selected Transformers model returned a structured output instead of a tensor. "
-            "This is fixed in v5.2.2. As a temporary workaround, select OpenCLIP or CLIP, "
+            "This is fixed in v6.0. As a temporary workaround, select OpenCLIP or CLIP, "
             "or disable cache and rerun after updating."
         )
     if "out of memory" in lower or "cuda" in lower and "memory" in lower:

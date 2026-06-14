@@ -6,6 +6,7 @@ from typing import Callable
 import numpy as np
 from PIL import Image
 
+from ..config_store import apply_hf_token_to_environment
 from .registry import ModelSpec
 
 
@@ -136,19 +137,34 @@ def _extract_text_embedding(model, inputs, provider: str):
     return _coerce_to_tensor(outputs, context=f"text_forward/{provider}")
 
 
+def _from_pretrained(factory, model_id: str, *, trust_remote_code: bool):
+    token = apply_hf_token_to_environment()
+    kwargs = {"trust_remote_code": trust_remote_code}
+    if token:
+        kwargs["token"] = token
+    try:
+        return factory.from_pretrained(model_id, **kwargs)
+    except TypeError:
+        if not token:
+            raise
+        kwargs.pop("token", None)
+        kwargs["use_auth_token"] = token
+        return factory.from_pretrained(model_id, **kwargs)
+
+
 def _load_processor(spec: ModelSpec):
     from transformers import AutoImageProcessor, AutoProcessor
 
     try:
-        return AutoProcessor.from_pretrained(spec.model_id, trust_remote_code=spec.trust_remote_code)
+        return _from_pretrained(AutoProcessor, spec.model_id, trust_remote_code=spec.trust_remote_code)
     except Exception:
-        return AutoImageProcessor.from_pretrained(spec.model_id, trust_remote_code=spec.trust_remote_code)
+        return _from_pretrained(AutoImageProcessor, spec.model_id, trust_remote_code=spec.trust_remote_code)
 
 
 def _load_model(spec: ModelSpec, device: str):
     from transformers import AutoModel
 
-    model = AutoModel.from_pretrained(spec.model_id, trust_remote_code=spec.trust_remote_code)
+    model = _from_pretrained(AutoModel, spec.model_id, trust_remote_code=spec.trust_remote_code)
     return model.to(device).eval()
 
 

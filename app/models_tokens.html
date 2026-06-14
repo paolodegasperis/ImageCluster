@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Info and Settings - ImageCluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="redesign settings-page" data-density="cozy">
+  <main class="mt-screen" data-screen-label="03 Info and settings">
+    <div class="mt-inner">
+      <section class="mt-head">
+        <div>
+          <div class="eyebrow">Configuration</div>
+          <h1>Info and settings</h1>
+          <p>Read the guide, browse the embedding model registry and glossary, and configure the local Hugging Face token used by model loaders.</p>
+        </div>
+        <a class="btn btn-sm" href="/">Dashboard</a>
+      </section>
+
+      <section class="token-card">
+        <div class="tc-title">
+          <h3>Hugging Face token</h3>
+          <span class="muted">stored in <span class="mono">output/local_settings.json</span></span>
+        </div>
+        <span id="hfTokenStatus" class="chip chip-warn dot">Checking...</span>
+        <div class="tc-input">
+          <input id="hfTokenInput" type="password" placeholder="hf_..." autocomplete="off" spellcheck="false" />
+          <button class="btn" id="hfTokenRevealButton" type="button">Show</button>
+          <button class="btn btn-primary" id="hfTokenSave">Save token</button>
+        </div>
+        <label class="visually-hidden"><input id="hfTokenReveal" type="checkbox" /> Show token</label>
+        <div class="tc-meta">
+          <span id="hfTokenMeta">Do not commit local_settings.json to source control.</span>
+          <span class="flex-1"></span>
+          <button class="btn btn-xs btn-ghost" id="hfTokenClear">Remove local token</button>
+        </div>
+      </section>
+
+      <nav class="is-tabs" aria-label="Info sections">
+        <a class="is-tab" href="#guide">Guide</a>
+        <a class="is-tab active" href="#models">Models</a>
+        <a class="is-tab" href="#glossary">Glossary</a>
+      </nav>
+
+      <section class="guide-grid" id="guide">
+        <article class="guide-card">
+          <h3>How the workflow runs</h3>
+          <p>ImageCluster encodes every image in the <code>img</code> folder into a vector, reduces those vectors to 2D, and lets you explore the result on an interactive canvas with optional clustering and text search.</p>
+          <div class="step-pill"><div class="sp-num mono">1</div><div class="sp-txt"><b>Scan the img folder</b><div>The backend lists supported images and reports the count.</div></div></div>
+          <div class="step-pill"><div class="sp-num mono">2</div><div class="sp-txt"><b>Pick an embedding model</b><div>CLIP-family models support text search; vision-only models support projection and clustering only.</div></div></div>
+          <div class="step-pill"><div class="sp-num mono">3</div><div class="sp-txt"><b>Generate the graph</b><div>Runs UMAP or t-SNE plus optional K-Means clustering as a background job.</div></div></div>
+          <div class="step-pill"><div class="sp-num mono">4</div><div class="sp-txt"><b>Explore</b><div>Pan and zoom the canvas, switch to image mode, search semantically, and browse clusters in the gallery.</div></div></div>
+        </article>
+        <article class="guide-card">
+          <h3>Choosing a model</h3>
+          <p>Match the model to the collection and hardware.</p>
+          <ul class="plain-guide-list">
+            <li><b>General art collection, need text search</b>: start with OpenCLIP ViT-B/32 or SigLIP 2.</li>
+            <li><b>Low-power machine or very large folder</b>: MobileCLIP variants.</li>
+            <li><b>Formal visual similarity, no text</b>: DINOv2.</li>
+            <li><b>Multilingual or non-Western corpus</b>: MetaCLIP 2 worldwide.</li>
+          </ul>
+          <div class="status-banner idle">Models marked planned are roadmap entries and cannot run locally yet.</div>
+        </article>
+      </section>
+
+      <section id="models">
+        <div class="mg-section-head">
+          <div>
+            <h2>Embedding model guide</h2>
+            <div id="modelCounts" class="muted">Loading models...</div>
+          </div>
+          <div id="modelShowing" class="meta"></div>
+        </div>
+        <div class="mg-filters">
+          <div class="mg-search">
+            <span>⌕</span>
+            <input id="modelSearch" type="search" placeholder="Search models - name, capability, hardware, tag" />
+          </div>
+          <select class="select select-tall" id="modelStatusFilter">
+            <option value="all">All statuses</option>
+            <option value="stable">Stable</option>
+            <option value="experimental">Experimental</option>
+            <option value="planned">Planned</option>
+          </select>
+          <select class="select select-tall" id="modelCapabilityFilter">
+            <option value="all">All capabilities</option>
+          </select>
+          <button class="btn" id="modelClearFilters">Clear</button>
+        </div>
+        <div id="modelGrid" class="mg-grid"></div>
+      </section>
+
+      <section id="glossary">
+        <dl class="glossary-list">
+          <div class="gloss"><dt>Embedding</dt><dd>A numeric vector that represents an image or text in a shared space.</dd></div>
+          <div class="gloss"><dt>Projection</dt><dd>A 2D map of high-dimensional embeddings, produced by UMAP or t-SNE.</dd></div>
+          <div class="gloss"><dt>UMAP</dt><dd>Fast projection method that preserves useful local and global structure.</dd></div>
+          <div class="gloss"><dt>t-SNE</dt><dd>Projection method that emphasizes tight local neighborhoods.</dd></div>
+          <div class="gloss"><dt>Clustering (K-Means)</dt><dd>Groups embeddings into K clusters and drives plot colors and gallery groups.</dd></div>
+          <div class="gloss"><dt>Semantic search</dt><dd>Free-text query matched against image embeddings, available for compatible image-text models.</dd></div>
+          <div class="gloss"><dt>Searchable index</dt><dd>A prepared structure over embeddings that makes repeated text queries faster.</dd></div>
+          <div class="gloss"><dt>Score / threshold</dt><dd>Similarity score per result; thresholds hide matches below a cutoff.</dd></div>
+          <div class="gloss"><dt>Top results</dt><dd>Maximum number of matches returned by a search.</dd></div>
+          <div class="gloss"><dt>Hugging Face token</dt><dd>A local credential used by model loaders to download gated models.</dd></div>
+        </dl>
+      </section>
+    </div>
+  </main>
+
+  <aside id="modelDrawer" class="mt-detail" hidden>
+    <div class="mt-detail-head">
+      <div class="mdh-main">
+        <div class="muted mono" id="drawerSubtitle"></div>
+        <h2 id="drawerTitle">Model</h2>
+      </div>
+      <button class="btn btn-icon btn-ghost btn-sm" type="button" data-close-drawer>×</button>
+    </div>
+    <div id="drawerBody" class="mt-detail-body"></div>
+    <div class="mt-detail-foot">
+      <span class="muted">Ready to use in a new projection when available.</span>
+      <a id="drawerUse" class="btn btn-accent" href="/clip">Use this model</a>
+    </div>
+  </aside>
+  <div class="mt-detail-backdrop" data-close-drawer hidden></div>
+
+  <script src="/static/js/models_tokens.js"></script>
+  <script src="/static/js/redesign_settings.js"></script>
+</body>
+</html>

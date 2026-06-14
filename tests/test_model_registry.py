@@ -25,32 +25,45 @@ def test_metaclip_entries_are_registered():
     assert MODEL_REGISTRY["metaclip_b32"].provider == "openclip"
     assert MODEL_REGISTRY["metaclip2_worldwide_b32"].supports_text_search is True
     assert MODEL_REGISTRY["metaclip2_worldwide_b32"].status == "experimental"
-    assert MODEL_REGISTRY["metaclip2_worldwide_h14"].status == "planned"
+    # V-5.4 Wave A: H/14 worldwide promoted to experimental via the transformers MetaCLIP 2 path.
+    assert MODEL_REGISTRY["metaclip2_worldwide_h14"].status == "experimental"
+    assert MODEL_REGISTRY["metaclip2_worldwide_h14"].provider == "transformers_metaclip2"
+    assert MODEL_REGISTRY["metaclip2_worldwide_h14"].model_id
 
 
-def test_mobileclip2_entries_are_experimental_and_searchable():
-    for key in ("mobileclip2_s2", "mobileclip2_b", "mobileclip2_s4"):
+def test_wave_a_models_are_wired_to_real_encoders():
+    """V-5.4 Wave A: planned roadmap entries promoted to experimental by reusing existing encoders."""
+    for key in ("eva_clip_l14", "eva_clip_bigE14", "metaclip2_worldwide_h14"):
         spec = MODEL_REGISTRY[key]
-        assert spec.provider == "openclip_hf_hub"
         assert spec.status == "experimental"
-        assert spec.supports_projection is True
-        assert spec.supports_text_search is True
-
-
-def test_experimental_vlm_visual_models_are_image_only():
-    expected = {
-        "llava_onevision_qwen2_05b_image_only": ("LLaVA-OneVision", "llava_onevision_visual"),
-        "qwen25_vl_3b_image_only": ("Qwen2.5-VL", "qwen25_vl_visual"),
-    }
-    for key, (family, provider) in expected.items():
-        spec = MODEL_REGISTRY[key]
-        assert spec.family == family
-        assert spec.provider == provider
-        assert spec.status == "experimental"
-        assert spec.supports_projection is True
+        assert spec.provider != "planned"
+        assert spec.model_id, f"{key} must have a real checkpoint id"
+        assert spec.requires, f"{key} must declare runtime requirements"
         assert spec.supports_image_embedding is True
-        assert spec.supports_text_embedding is False
-        assert spec.supports_text_search is False
+        assert spec.supports_projection is True
+        # All three are CLIP-family → text search capable.
+        assert spec.supports_text_search is True
+        assert spec.supports_text_embedding is True
+    # EVA variants route through OpenCLIP and need a pretrained tag.
+    assert MODEL_REGISTRY["eva_clip_l14"].provider == "openclip"
+    assert MODEL_REGISTRY["eva_clip_l14"].pretrained
+    assert MODEL_REGISTRY["eva_clip_bigE14"].provider == "openclip"
+    assert MODEL_REGISTRY["eva_clip_bigE14"].pretrained
+
+
+def test_v55_multimodal_models_are_registered():
+    """V-5.5: Qwen3-VL Embedding and Jina v5 Omni route through the sentence-transformers encoder."""
+    for key in ("qwen3_vl_embedding_2b", "jina_v5_omni_small"):
+        spec = MODEL_REGISTRY[key]
+        assert spec.status == "experimental"
+        assert spec.provider == "sentence_transformers"
+        assert spec.model_id
+        assert spec.trust_remote_code is True
+        assert "sentence_transformers" in spec.requires
+        assert spec.supports_image_embedding is True
+        assert spec.supports_text_search is True
+        assert spec.supports_text_embedding is True
+        assert spec.supports_projection is True
 
 
 def test_required_model_families_are_present():
@@ -67,8 +80,6 @@ def test_required_model_families_are_present():
         "ImageBind",
         "MetaCLIP",
         "MetaCLIP 2",
-        "LLaVA-OneVision",
-        "Qwen2.5-VL",
         "HQ-CLIP",
         "Long-CLIP",
         "EVA-CLIP",

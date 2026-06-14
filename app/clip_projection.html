@@ -4,232 +4,262 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Embedding Projection - ImageCluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
-<body class="projector-body">
-  <main class="projector-shell">
+<body class="redesign workflow-page" data-density="cozy">
+  <main class="mv-shell" data-screen-label="02 Main View - Embedding Projection">
     <header class="topbar">
-      <a class="brand" href="/" aria-label="Dashboard"><span class="brand-mark"></span><strong>ImageCluster</strong></a>
-      <span class="breadcrumb">Embedding Projection</span>
-      <span id="systemStatus" class="status-chip">Checking system status...</span>
-      <a class="icon-button" href="/settings" title="Models & tokens" aria-label="Models and tokens">⚙</a>
+      <div class="brand-mark">P</div>
+      <strong>Projector</strong>
+      <a href="/">Dashboard</a>
+      <span>/</span>
+      <strong>Embedding Projection</strong>
+      <span class="topbar-spacer"></span>
+      <span class="chip chip-success dot" id="topbarStatusChip">System ready</span>
+      <button class="topbar-gear" type="button" aria-label="Settings">Settings</button>
     </header>
 
-    <aside class="left-rail" aria-label="Workflow">
-      <div class="lr-header">
-        <div>
-          <p class="eyebrow">Workflow</p>
-          <h1>Embedding Projection</h1>
+    <aside class="left-rail">
+      <div class="lr-scroll">
+        <div class="section-title-rail">
+          <span>Workflow</span>
+          <span class="muted mono" id="systemStatus">Checking system status...</span>
         </div>
-        <span id="summaryImages" class="mini-stat">Not scanned</span>
+
+        <section class="step open active">
+          <div class="step-head">
+            <div class="num step-ok">✓</div>
+            <div class="ttl">Image folder</div>
+            <div class="meta" id="workflowImageCount">img</div>
+          </div>
+          <div class="step-body">
+            <p class="help">Place images in the project <code>img</code> folder.</p>
+            <button class="btn btn-sm" id="scanImageDirBtn">Scan img folder</button>
+            <div class="status-banner idle" id="imageDirStatus">Not scanned yet.</div>
+          </div>
+        </section>
+
+        <section class="step open active">
+          <div class="step-head">
+            <div class="num step-ok">✓</div>
+            <div class="ttl">Embedding model</div>
+            <div class="meta" id="workflowModelShort">Registry</div>
+          </div>
+          <div class="step-body">
+            <p class="help">Choose the model used to encode every image. CLIP-like models also support text search.</p>
+            <label class="label" for="modelKey">Model</label>
+            <select class="select" id="modelKey"><option value="openclip_vit_b_32">Loading models...</option></select>
+            <div class="model-option-list" id="modelOptionList"></div>
+            <div class="status-banner idle" id="modelInfo">The default model is compatible with the previous OpenCLIP workflow.</div>
+          </div>
+        </section>
+
+        <section class="step open active">
+          <div class="step-head">
+            <div class="num step-ok">✓</div>
+            <div class="ttl">Projection</div>
+            <div class="meta" id="workflowReducerShort">UMAP</div>
+          </div>
+          <div class="step-body">
+            <label class="label" for="reducer">Projection method</label>
+            <select class="select" id="reducer">
+              <option value="umap">UMAP - recommended</option>
+              <option value="tsne">t-SNE - advanced</option>
+            </select>
+            <div class="seg projection-seg" aria-hidden="true">
+              <button type="button" data-reducer-choice="umap" class="active">UMAP</button>
+              <button type="button" data-reducer-choice="tsne">t-SNE</button>
+            </div>
+
+            <details class="rail-details">
+              <summary>Advanced projection settings</summary>
+              <div class="fld">
+                <div class="lbl"><span>Batch size</span></div>
+                <input class="input mono" id="batchSize" type="number" min="1" max="256" value="32" />
+              </div>
+              <div class="fld">
+                <div class="lbl"><span>UMAP neighbors</span></div>
+                <input class="input mono" id="umapNeighbors" type="number" min="2" max="200" value="15" />
+              </div>
+              <div class="fld">
+                <div class="lbl"><span>UMAP min dist</span></div>
+                <input class="input mono" id="umapMinDist" type="number" min="0" max="1" step="0.05" value="0.1" />
+              </div>
+              <div class="fld">
+                <div class="lbl"><span>t-SNE perplexity</span></div>
+                <input class="input mono" id="tsnePerplexity" type="number" min="2" max="100" value="30" />
+              </div>
+              <div class="fld">
+                <div class="lbl"><span>t-SNE iterations</span></div>
+                <input class="input mono" id="tsneIterations" type="number" min="250" max="5000" value="1000" />
+              </div>
+              <label class="check-row"><input id="useCache" type="checkbox" checked /> Reuse cached embeddings when available</label>
+              <label class="check-row"><input id="showPlannedModels" type="checkbox" /> Show planned roadmap models</label>
+            </details>
+
+            <details class="rail-details">
+              <summary>Clustering (K-Means)</summary>
+              <label class="check-row"><input id="clusterEnabled" type="checkbox" /> Add optional K-Means clusters to the projection</label>
+              <div class="fld">
+                <div class="lbl"><span>Cluster count</span></div>
+                <select class="select" id="clusterMode">
+                  <option value="auto">Auto, by silhouette score</option>
+                  <option value="fixed">Fixed K</option>
+                </select>
+              </div>
+              <div class="cluster-mini-grid">
+                <div class="fld"><div class="lbl"><span>Auto min K</span></div><input class="input mono" id="clusterMinK" type="number" min="2" max="50" value="2" /></div>
+                <div class="fld"><div class="lbl"><span>Fixed K</span></div><input class="input mono" id="clusterK" type="number" min="2" max="50" value="5" /></div>
+                <div class="fld"><div class="lbl"><span>Auto max K</span></div><input class="input mono" id="clusterMaxK" type="number" min="2" max="50" value="8" /></div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <div class="section-title-rail saved-title"><span>Saved projections</span></div>
+        <select class="select mono saved-select" id="projectionList"><option value="">Loading...</option></select>
       </div>
 
-      <details class="step" id="stepImages" open>
-        <summary><span class="step-number">1</span><span>Images</span><small id="imageDirStatus">Not scanned yet.</small></summary>
-        <div class="step-body">
-          <button class="secondary-action" id="scanImageDirBtn">Scan img folder</button>
-          <span class="badge">JPG · PNG · WebP · BMP · TIFF</span>
-        </div>
-      </details>
-
-      <details class="step" id="stepModel" open>
-        <summary><span class="step-number">2</span><span>Model</span><small id="summaryModel">Not selected</small></summary>
-        <div class="step-body">
-          <div class="form-row">
-            <label for="modelKey">Embedding model</label>
-            <select id="modelKey"><option value="openclip_vit_b_32">Loading models...</option></select>
+      <div class="lr-footer">
+        <div class="generate-box">
+          <div class="gen-summary">
+            <span class="gk">Images</span><span class="gv">img</span>
+            <span class="gk">Model</span><span class="gv">selected</span>
+            <span class="gk">Projection</span><span class="gv">UMAP</span>
+            <span class="gk">Clustering</span><span class="gv">optional</span>
           </div>
-          <div id="modelBadges" class="badge-row"></div>
-          <div class="status-box" id="modelInfo">The default model is compatible with the previous OpenCLIP workflow.</div>
-          <details class="advanced compact-advanced">
-            <summary>Roadmap models</summary>
-            <label class="checkbox"><input id="showPlannedModels" type="checkbox" /> Show planned roadmap models</label>
-          </details>
+          <button class="gen-btn" id="startBtn">Generate projection</button>
+          <button class="btn btn-sm" id="cancelBtn" disabled>Cancel</button>
+          <div id="jobBox" class="status-banner idle">Ready.</div>
+          <div id="jobLinks" class="small debug-links"></div>
+          <div class="progress compact-progress"><div id="progressBar"></div></div>
         </div>
-      </details>
-
-      <details class="step" id="stepProjection" open>
-        <summary><span class="step-number">3</span><span>Projection</span><small id="summaryReducer">UMAP</small></summary>
-        <div class="step-body">
-          <div class="segmented" role="group" aria-label="Projection method">
-            <label><input type="radio" name="reducerChoice" value="umap" checked /> UMAP</label>
-            <label><input type="radio" name="reducerChoice" value="tsne" /> t-SNE</label>
-          </div>
-          <select id="reducer" class="visually-hidden" aria-hidden="true">
-            <option value="umap">UMAP - recommended</option>
-            <option value="tsne">t-SNE - slower, advanced</option>
-          </select>
-          <details class="advanced">
-            <summary>Advanced projection settings</summary>
-            <div class="form-grid compact">
-              <div class="form-row"><label for="batchSize">Batch size</label><input id="batchSize" type="number" min="1" max="256" value="32" /></div>
-              <div class="form-row"><label for="umapNeighbors">UMAP neighbors</label><input id="umapNeighbors" type="number" min="2" max="200" value="15" /></div>
-              <div class="form-row"><label for="umapMinDist">UMAP min dist</label><input id="umapMinDist" type="number" min="0" max="1" step="0.05" value="0.1" /></div>
-              <div class="form-row"><label for="tsnePerplexity">t-SNE perplexity</label><input id="tsnePerplexity" type="number" min="2" max="100" value="30" /></div>
-              <div class="form-row"><label for="tsneIterations">t-SNE iterations</label><input id="tsneIterations" type="number" min="250" max="5000" value="1000" /></div>
-            </div>
-            <label class="checkbox"><input id="useCache" type="checkbox" checked /> Reuse cached embeddings</label>
-          </details>
-          <details class="advanced">
-            <summary>Advanced clustering options</summary>
-            <label class="checkbox"><input id="clusterEnabled" type="checkbox" /> Enable optional K-Means clustering</label>
-            <div class="form-grid compact">
-              <div class="form-row"><label for="clusterMode">Cluster count</label><select id="clusterMode"><option value="auto">Auto</option><option value="fixed">Fixed K</option></select></div>
-              <div class="form-row"><label for="clusterMinK">Auto min K</label><input id="clusterMinK" type="number" min="2" max="50" value="2" /></div>
-              <div class="form-row"><label for="clusterK">Fixed K</label><input id="clusterK" type="number" min="2" max="50" value="5" /></div>
-              <div class="form-row"><label for="clusterMaxK">Auto max K</label><input id="clusterMaxK" type="number" min="2" max="50" value="8" /></div>
-            </div>
-          </details>
-        </div>
-      </details>
-
-      <div class="lr-footer" id="stepGenerate">
-        <div id="generationSummary" class="summary-grid"></div>
-        <button class="primary" id="startBtn">Generate projection graph</button>
-        <button id="cancelBtn" disabled>Cancel job</button>
-        <div id="generateHint" class="small">Scan images and choose an available projection model to begin.</div>
-        <div id="jobBox" class="status-box job-box">Ready.</div>
-        <div id="jobLinks" class="small debug-links"></div>
-        <div class="progress" aria-label="Job progress"><div id="progressBar"></div></div>
       </div>
     </aside>
 
-    <section class="mv-center" aria-label="Projection plot">
-      <div class="floating-search" id="semanticSearchPanel">
-        <input id="searchQuery" type="text" placeholder="Describe what you're looking for..." aria-label="Semantic search query" />
-        <input id="searchTopK" type="number" min="1" max="500" value="30" title="Top results" />
-        <input id="searchThreshold" type="number" min="-1" max="1" step="0.01" placeholder="threshold" title="Optional threshold" />
-        <span id="searchCapability" class="search-capability">Select a text-search model.</span>
-        <button class="primary" id="searchBtn">Search</button>
-        <button id="clearSearchBtn" title="Clear results">×</button>
+    <section class="mv-center">
+      <div class="search-bar" id="semanticSearchBar">
+        <span class="sb-icon">⌕</span>
+        <input id="searchQuery" type="text" placeholder="Describe what you're looking for - e.g. gold background Madonna and Child" />
+        <span class="sb-meta" id="searchCapability">Select a text-search model and load or generate embeddings.</span>
+        <button class="btn btn-icon btn-ghost btn-sm" id="clearSearchBtn" title="Clear results">×</button>
+        <button class="btn btn-icon btn-ghost btn-sm" type="button" data-search-options title="Search options">⚙</button>
+        <button class="sb-go" id="searchBtn">Search</button>
       </div>
 
-      <div class="plot-toolbar" aria-label="Plot tools">
-        <button id="fitDataBtn" title="Fit to data">⌖</button>
-        <button id="resetViewBtn" title="Reset view">↺</button>
-        <button id="toggleModeBtn" title="Toggle thumbnails or points">Mode: thumbnails</button>
-        <button id="exportPngBtn" disabled title="Export PNG">PNG</button>
+      <div class="search-opts" id="searchOptionsPanel" hidden>
+        <div class="so-grid">
+          <div class="fld"><div class="lbl"><span>Top results</span></div><input class="input mono" id="searchTopK" type="number" min="1" max="500" value="30" /></div>
+          <div class="fld"><div class="lbl"><span>Score threshold</span></div><input class="input mono" id="searchThreshold" type="number" min="-1" max="1" step="0.01" placeholder="optional" /></div>
+        </div>
+        <div class="so-actions">
+          <button class="btn btn-sm" id="buildIndexBtn">Build searchable index</button>
+          <button class="btn btn-sm" id="exportSearchBtn" disabled>Export results TSV</button>
+          <label class="so-toggle"><input id="highlightSearchToggle" type="checkbox" checked /> Highlight on plot</label>
+          <label class="so-toggle"><input id="showOnlySearchToggle" type="checkbox" /> Show only results</label>
+        </div>
       </div>
 
-      <div class="canvas-wrap tall">
+      <div class="plot-wrap">
         <canvas id="plot"></canvas>
+        <div class="plot-legend" id="plotLegend" hidden></div>
+        <div class="plot-toolbar">
+          <button type="button" id="zoomInBtn" title="Zoom in">+</button>
+          <button type="button" id="zoomOutBtn" title="Zoom out">-</button>
+          <button type="button" id="fitViewBtn" title="Fit to data">fit</button>
+          <button type="button" id="resetViewBtn" title="Reset view">reset</button>
+          <div class="div"></div>
+          <button type="button" id="toggleModeBtn" title="Mode: images">img</button>
+          <button type="button" id="exportPngBtn" title="Export PNG">png</button>
+        </div>
+        <div class="plot-status">
+          <div class="ps-stat"><span class="k">Showing</span><span class="v">canvas</span></div>
+          <div class="ps-stat"><span class="k">Mode</span><span class="v">images</span></div>
+          <div class="ps-stat"><span class="k">Zoom</span><span class="v">1.00x</span></div>
+        </div>
       </div>
 
-      <div class="plot-legend" id="plotLegendShell">
-        <strong>Clusters</strong>
-        <span id="summaryClustering">Disabled</span>
-      </div>
-      <div class="plot-status">
-        <span id="summaryJob">Ready</span>
-        <span id="summaryOutput">None</span>
-        <span id="summarySearch">No index loaded</span>
-      </div>
+      <section class="bottom-dock" id="projectionDock">
+        <div class="dock-bar">
+          <div class="dock-tabs">
+            <button class="dock-tab active" type="button" data-dock-tab="cluster">Cluster gallery</button>
+            <button class="dock-tab" type="button" data-dock-tab="search">Search results <span id="searchStatus" class="dt-count">No search yet.</span></button>
+          </div>
+          <div class="dock-spacer"></div>
+          <button class="btn btn-sm btn-ghost" type="button" data-dock-toggle>Expand</button>
+        </div>
+        <div class="dock-body">
+          <section class="dock-pane active" id="clusterPanel" style="display:none">
+            <div class="dock-controls">
+              <div class="dc-field"><span class="lbl">Cluster</span><select class="select" id="clusterSelect"><option value="">No clusters yet</option></select></div>
+              <label class="dc-toggle"><input id="highlightClusterToggle" type="checkbox" checked /> Highlight selected cluster on plot</label>
+              <label class="dc-toggle"><input id="showOnlyClusterToggle" type="checkbox" /> Show only the selected cluster</label>
+              <div class="dc-spacer"></div>
+              <div class="dc-field"><span class="lbl">Gallery size</span><input id="clusterThumbSize" type="range" min="80" max="320" value="160" /></div>
+            </div>
+            <div id="clusterSummary" class="small dock-summary">Enable clustering to browse the images inside each cluster.</div>
+            <div id="clusterGallery" class="search-results cluster-results gallery-grid"></div>
+          </section>
+          <section class="dock-pane" id="searchDockPane">
+            <div class="dock-controls">
+              <div class="dc-field"><span class="lbl">Result thumbnail size</span><input id="searchThumbSize" type="range" min="80" max="320" value="160" /></div>
+              <div class="dc-spacer"></div>
+              <button class="btn btn-sm" id="downloadBtn" disabled>Download TSV</button>
+            </div>
+            <div id="searchError" class="search-error" hidden></div>
+            <div id="searchResults" class="search-results gallery-grid"></div>
+          </section>
+        </div>
+      </section>
     </section>
 
-    <nav class="right-rail" aria-label="Tools">
-      <button data-drawer="explore" title="Explore">◎</button>
-      <button data-drawer="results" title="Search results">⌕</button>
-      <button data-drawer="filters" title="Filters">≡</button>
-      <button data-drawer="session" title="Session">◷</button>
-      <hr />
-      <button data-drawer="cluster" title="Cluster report">⌬</button>
-      <button data-drawer="compare" title="Compare">⇄</button>
-      <button data-drawer="export" title="Export">⇩</button>
-      <button data-drawer="info" class="rail-bottom" title="Info">?</button>
-    </nav>
+    <aside class="right-rail">
+      <button class="rr-btn active" type="button" title="Explore" data-open-drawer="explore"><span class="rr-icon rr-sliders"></span></button>
+      <button class="rr-btn" type="button" title="Filters" data-open-drawer="filters"><span class="rr-icon rr-filter"></span></button>
+      <button class="rr-btn" type="button" title="Session" data-open-drawer="session"><span class="rr-icon rr-doc"></span></button>
+      <button class="rr-btn" type="button" title="Export" data-open-drawer="export"><span class="rr-icon rr-nodes"></span></button>
+      <button class="rr-btn" type="button" title="Compare" data-open-drawer="session"><span class="rr-icon rr-columns"></span></button>
+      <button class="rr-btn" type="button" title="Download" data-open-drawer="export"><span class="rr-icon rr-download"></span></button>
+      <div class="rail-spacer"></div>
+      <button class="rr-btn" type="button" title="Help" data-open-drawer="help"><span class="rr-icon rr-info"></span></button>
+    </aside>
 
-    <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
-    <aside class="drawer" id="toolDrawer" hidden aria-label="Tool drawer">
-      <header><h2 id="drawerTitle">Explore</h2><button id="drawerClose" aria-label="Close drawer">×</button></header>
+    <aside class="drawer" id="workflowDrawer" hidden>
+      <div class="drawer-head">
+        <div class="dh-title" id="workflowDrawerTitle">Explore</div>
+        <button class="btn btn-icon btn-ghost btn-sm" type="button" data-close-workflow-drawer>×</button>
+      </div>
       <div class="drawer-body">
-        <section class="drawer-pane" data-pane="explore">
-          <p class="drawer-label">View</p>
-          <div class="toolbar explore-actions">
-            <button id="clearSearchFilterBtn" disabled>Clear search filter</button>
-            <button id="buildIndexBtn">Build searchable index</button>
-          </div>
-          <div class="form-row"><label for="thumbSize">Projection thumbnail size</label><input id="thumbSize" type="range" min="16" max="128" value="48" /></div>
-          <div class="form-row"><label for="projectionList">Open saved projection</label><select id="projectionList"><option value="">Loading...</option></select></div>
-          <label class="checkbox"><input id="showThumbnailOutline" type="checkbox" checked /> Show colored outline around thumbnails</label>
-          <label class="checkbox"><input id="forceThumbnails" type="checkbox" /> Force thumbnails for large projections</label>
-          <label class="checkbox"><input id="highlightSearchToggle" type="checkbox" checked /> Highlight results on plot</label>
-          <label class="checkbox"><input id="showOnlySearchToggle" type="checkbox" /> Show only results</label>
-          <div id="renderNotice" class="performance-notice">Projection rendering status will appear here after data is loaded.</div>
-          <details class="advanced compact-advanced"><summary>Performance debug</summary><div id="renderDebug" class="small render-debug">No render yet.</div><div id="thumbnailStatus" class="small">Thumbnail cache empty.</div></details>
+        <section class="sect" data-drawer-panel="explore">
+          <h5>View and thumbnails</h5>
+          <button class="btn btn-sm" id="drawerResetViewBtn" type="button">Reset view</button>
+          <button class="btn btn-sm" id="drawerExportPngBtn" type="button">Export PNG</button>
+          <div class="fld"><div class="lbl"><span>Thumbnail size</span></div><input id="thumbSize" type="range" min="16" max="128" value="48" /></div>
+          <label class="check-row"><input id="showThumbnailOutline" type="checkbox" checked /> Show colored outline around thumbnails</label>
         </section>
-
-        <section class="drawer-pane" data-pane="results">
-          <p class="drawer-label">Semantic Search Results</p>
-          <div id="searchStatus" class="small search-status">No search yet.</div>
-          <div id="searchError" class="search-error" hidden></div>
-          <div class="toolbar compact-actions">
-            <button id="exportSearchBtn" disabled>Export search TSV</button>
-          </div>
-          <div class="form-row">
-            <label for="searchThumbSize">Result thumbnail size</label>
-            <input id="searchThumbSize" type="range" min="80" max="320" value="160" />
-          </div>
-          <div id="searchResults" class="search-results"></div>
+        <section class="sect" data-drawer-panel="filters" hidden>
+          <h5>Filters</h5>
+          <p class="help">Cluster and filename filters are visual placeholders for the next refinement pass.</p>
         </section>
-
-        <section class="drawer-pane" data-pane="filters">
-          <p class="drawer-label">Filters</p>
-          <div class="form-grid compact">
-            <div class="form-row"><label for="filterCluster">Cluster</label><select id="filterCluster"><option value="">All clusters</option></select></div>
-            <div class="form-row"><label for="filterFilename">Filename contains</label><input id="filterFilename" type="text" placeholder="Angelico" /></div>
-            <div class="form-row"><label for="filterSubfolder">Subfolder</label><select id="filterSubfolder"><option value="">All subfolders</option></select></div>
-            <div class="form-row"><label for="filterPath">Path contains</label><input id="filterPath" type="text" placeholder="img/subfolder" /></div>
-            <div class="form-row"><label for="filterScoreMin">Search score min</label><input id="filterScoreMin" type="number" min="-1" max="1" step="0.01" placeholder="any" /></div>
-            <div class="form-row"><label for="filterScoreMax">Search score max</label><input id="filterScoreMax" type="number" min="-1" max="1" step="0.01" placeholder="any" /></div>
-          </div>
-          <button id="clearFiltersBtn" type="button">Clear filters</button>
-          <div id="filterSummary" class="small">No active filters.</div>
-        </section>
-
-        <section class="drawer-pane" data-pane="session">
-          <p class="drawer-label">Run Summary</p>
-          <dl class="session-dl">
-            <div><dt>Capability</dt><dd id="summaryCapability">Unknown</dd></div>
-            <div><dt>Projection</dt><dd id="summaryReducerDrawer">UMAP</dd></div>
-            <div><dt>Clustering</dt><dd id="summaryClusteringDrawer">Disabled</dd></div>
-          </dl>
-          <div class="form-row"><label for="sessionName">Session name</label><input id="sessionName" type="text" placeholder="My analysis session" /></div>
-          <div class="form-row"><label for="sessionList">Load session</label><select id="sessionList"><option value="">No sessions loaded</option></select></div>
-          <div class="toolbar compact-actions"><button id="saveSessionBtn" type="button">Save session</button><button id="loadSessionBtn" type="button">Load session</button></div>
-          <div id="sessionStatus" class="small">Sessions are saved under output/sessions.</div>
-        </section>
-
-        <section class="drawer-pane" data-pane="cluster">
-          <p class="drawer-label">Cluster Report</p>
-          <div class="toolbar compact-actions"><button id="clusterReportBtn" type="button">Generate cluster report</button><button id="clusterReportJsonBtn" type="button" disabled>Export report JSON</button></div>
-          <div id="clusterReportStatus" class="small">Load a clustered projection to create a report.</div>
-          <div id="clusterReportResults" class="analysis-results"></div>
-        </section>
-
-        <section class="drawer-pane" data-pane="compare">
-          <p class="drawer-label">Compare Models / Projections</p>
-          <div class="form-row"><label for="compareProjectionA">Projection A</label><select id="compareProjectionA"><option value="">Loading...</option></select></div>
-          <div class="form-row"><label for="compareProjectionB">Projection B</label><select id="compareProjectionB"><option value="">Loading...</option></select></div>
-          <div class="toolbar compact-actions"><button id="compareBtn" type="button">Compare selected projections</button><button id="comparisonJsonBtn" type="button" disabled>Export comparison JSON</button></div>
-          <div id="comparisonResults" class="analysis-results"></div>
-        </section>
-
-        <section class="drawer-pane" data-pane="export">
-          <p class="drawer-label">Export</p>
-          <div class="toolbar compact-actions">
-            <button id="downloadBtn" disabled>Download TSV</button>
-            <button id="exportHtmlBtn" type="button">Export standalone HTML</button>
+        <section class="sect" data-drawer-panel="session" hidden>
+          <h5>Session summary</h5>
+          <div class="session-pills">
+            <div class="spill"><div class="k">Images</div><div class="v">img</div></div>
+            <div class="spill"><div class="k">Projection</div><div class="v">UMAP/t-SNE</div></div>
+            <div class="spill"><div class="k">Output</div><div class="vm">output/projections</div></div>
           </div>
         </section>
-
-        <section class="drawer-pane" data-pane="info">
-          <p class="drawer-label">Suggested queries</p>
-          <div id="searchExamples" class="suggestion-row" aria-label="Example search queries">
-            <button type="button" data-query="Madonna con bambino">Madonna con bambino</button>
-            <button type="button" data-query="portrait with dark background">portrait with dark background</button>
-            <button type="button" data-query="gold background Byzantine icon">gold background Byzantine icon</button>
-            <button type="button" data-query="female saint holding a book">female saint holding a book</button>
-          </div>
+        <section class="sect" data-drawer-panel="export" hidden>
+          <h5>Export</h5>
+          <button class="btn btn-sm" type="button" id="drawerDownloadBtn">Download TSV</button>
+          <button class="btn btn-sm" type="button" id="drawerBuildIndexBtn">Build searchable index</button>
+        </section>
+        <section class="sect" data-drawer-panel="help" hidden>
+          <h5>Keyboard</h5>
+          <p class="help"><span class="kbd">/</span> focuses search. <span class="kbd">Esc</span> clears search focus.</p>
         </section>
       </div>
     </aside>
@@ -248,5 +278,6 @@
     </div>
   </main>
   <script src="/static/js/clip_projection.js"></script>
+  <script src="/static/js/redesign_ui.js"></script>
 </body>
 </html>

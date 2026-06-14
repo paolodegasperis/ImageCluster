@@ -15,10 +15,5 @@ def test_cosine_ranking_on_synthetic_vectors():
 
 
 def test_encode_texts_rejects_image_only_model():
-    for key in (
-        "dinov2_base",
-        "llava_onevision_qwen2_05b_image_only",
-        "qwen25_vl_3b_image_only",
-    ):
-        with pytest.raises(RuntimeError, match="does not support text search"):
-            encode_texts(["Madonna con bambino"], MODEL_REGISTRY[key])
+    with pytest.raises(RuntimeError, match="does not support text search"):
+        encode_texts(["Madonna con bambino"], MODEL_REGISTRY["dinov2_base"])
