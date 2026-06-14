@@ -5,7 +5,6 @@ __pycache__/
 *.log
 
 # Tooling / local work artifacts
-.claude/
 .pytest_cache/
 
 build/
