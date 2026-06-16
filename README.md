@@ -1,3 +1,4 @@
+https://doi.org/10.5281/zenodo.20691432
 # ImageCluster
 
 ImageCluster is a local web application for exploring image collections through AI embedding models. It projects thousands of images onto an interactive 2D map, lets you search them with natural language, and groups them into visual clusters — all running on your own machine, without sending data anywhere.
