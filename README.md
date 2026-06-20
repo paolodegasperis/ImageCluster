@@ -166,5 +166,5 @@ Some models require accepting a license on Hugging Face before download. If a mo
 
 ## Version
 
-V-5.5 · June 2026
+V-5.6 · June 2026
 This software was primarily developed using generative AI. It is intended for educational and research purposes only. It is not recommended for commercial or production use.
