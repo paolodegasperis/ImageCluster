@@ -161,6 +161,53 @@ def _load_processor(spec: ModelSpec):
         return _from_pretrained(AutoImageProcessor, spec.model_id, trust_remote_code=spec.trust_remote_code)
 
 
+def _load_text_processor(spec: ModelSpec):
+    """Load a processor that can tokenize text.
+
+    Unlike _load_processor we never fall back to an image-only processor here:
+    text search needs a tokenizer, so a failure to load the full processor must
+    surface as a clear, actionable error instead of being masked as a generic
+    400 later when ``processor(text=...)`` is called.
+    """
+    from transformers import AutoProcessor
+
+    try:
+        processor = _from_pretrained(AutoProcessor, spec.model_id, trust_remote_code=spec.trust_remote_code)
+    except ImportError as exc:
+        raise RuntimeError(_missing_text_dependency_message(spec, exc)) from exc
+    except Exception as exc:
+        raise RuntimeError(
+            f"Could not load the text processor for '{spec.label}' ({spec.model_id}): {exc}"
+        ) from exc
+
+    if not _processor_supports_text(processor):
+        raise RuntimeError(
+            f"The processor for '{spec.label}' ({spec.model_id}) does not provide a text tokenizer, "
+            "so text search is not available for this model."
+        )
+    return processor
+
+
+def _processor_supports_text(processor) -> bool:
+    if getattr(processor, "tokenizer", None) is not None:
+        return True
+    # Some processors expose tokenization directly rather than via a .tokenizer attribute.
+    return callable(getattr(processor, "tokenize", None))
+
+
+def _missing_text_dependency_message(spec: ModelSpec, exc: Exception) -> str:
+    text = str(exc).lower()
+    hint = ""
+    if "sentencepiece" in text:
+        hint = " Install it with: pip install sentencepiece protobuf"
+    elif "protobuf" in text:
+        hint = " Install it with: pip install protobuf"
+    return (
+        f"The text tokenizer for '{spec.label}' ({spec.model_id}) requires an optional dependency "
+        f"that is not installed: {exc}.{hint}"
+    )
+
+
 def _load_model(spec: ModelSpec, device: str):
     from transformers import AutoModel
 
@@ -262,7 +309,7 @@ def encode_texts_with_transformers(texts: list[str], spec: ModelSpec, batch_size
         raise RuntimeError("No text queries were provided.")
 
     device = _select_device()
-    processor = _load_processor(spec)
+    processor = _load_text_processor(spec)
     model = _load_model(spec, device)
 
     vectors: list[np.ndarray] = []
