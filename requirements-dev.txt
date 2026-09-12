@@ -1,0 +1,7 @@
+# Development-only tooling. Not needed to run the app.
+-r requirements-core.txt
+pytest>=8.0
+ruff>=0.5
+# Starlette's TestClient drives the app through httpx; without it the API tests
+# cannot run even though the app itself never needs it.
+httpx>=0.27

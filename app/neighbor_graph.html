@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Neighbor Graph - ImageCluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="redesign graph-page" data-density="cozy">
+  <main class="graph-shell" data-screen-label="03 Neighbor Graph">
+    <header class="topbar">
+      <div class="brand-mark">P</div>
+      <strong>Projector</strong>
+      <a href="/">Dashboard</a>
+      <span>/</span>
+      <a href="/clip">Embedding Projection</a>
+      <span>/</span>
+      <strong>Neighbor graph</strong>
+      <span class="topbar-spacer"></span>
+      <a class="btn btn-sm btn-ghost" href="/guide"
+         title="Plain-language explanation of every feature in the app">Guide</a>
+      <button class="btn btn-sm btn-ghost" type="button" data-open-help
+              title="Open the explanation of what this view shows and how to read it">How to read this</button>
+      <span class="chip chip-warn dot" id="graphStatusChip"
+            title="Graph status: how many nodes and edges the current graph holds">No graph yet</span>
+    </header>
+
+    <aside class="graph-rail">
+      <div class="lr-scroll">
+        <div class="section-title-rail"><span>Source</span></div>
+        <section class="step open active">
+          <div class="step-body">
+            <p class="help">
+              Every image is linked to the images it is genuinely closest to, measured in the
+              <strong>full embedding space</strong> rather than in the flattened 2D map.
+              <button class="link-btn" type="button" data-open-help>What does that mean?</button>
+            </p>
+            <label class="label" for="graphProjection">Projection</label>
+            <select class="select mono" id="graphProjection"
+                    title="Which saved projection to read. The graph reuses that projection's embedding file, so nothing is re-encoded and no model is loaded.">
+              <option value="">Loading...</option>
+            </select>
+            <div class="status-banner idle" id="graphSourceInfo"
+                 title="Whether the selected projection can produce a graph, and why not when it cannot">Choose a saved projection.</div>
+          </div>
+        </section>
+
+        <div class="section-title-rail"><span>Graph</span></div>
+        <section class="step open active">
+          <div class="step-body">
+            <div class="fld"
+                 title="How many nearest neighbours each image may link to. Low k (1-3) keeps only the strongest relationships and breaks the collection into many small islands. High k (8+) connects almost everything into one dense mass. Start at 4.">
+              <div class="lbl"><span>Neighbours per image (k)</span><span class="mono" id="graphKValue">4</span></div>
+              <input id="graphK" type="range" min="1" max="20" value="4" aria-label="Neighbours per image" />
+            </div>
+            <div class="fld"
+                 title="Hide links weaker than this cosine similarity (0 = no filter, 1 = identical). The quickest way to thin out a hairball: only confident relationships survive and weakly-related images fall away as isolated nodes.">
+              <div class="lbl"><span>Minimum similarity</span><span class="mono" id="graphThresholdValue">off</span></div>
+              <input id="graphThreshold" type="range" min="0" max="100" step="1" value="0" aria-label="Minimum similarity" />
+            </div>
+            <label class="check-row"
+                   title="Keep only links where both images chose each other. This removes the links an outlier had to make because k forced it to pick someone, leaving the relationships both sides agree on.">
+              <input id="graphMutualOnly" type="checkbox" /> Only reciprocal edges
+            </label>
+            <p class="help">A reciprocal edge means both images list each other. One-directional edges often point at an
+            outlier that had to pick <em>someone</em>.</p>
+            <button class="gen-btn" id="graphBuildBtn" disabled
+                    title="Compute the graph from the selected projection's embeddings. Runs locally in about a second; no model is loaded.">Build graph</button>
+            <div id="graphMessage" class="status-banner idle"
+                 title="Result of the last build, including any images whose embedding vector was unusable">Ready.</div>
+          </div>
+        </section>
+
+        <div class="section-title-rail"><span>Appearance</span></div>
+        <section class="step open active">
+          <div class="step-body">
+            <label class="label" for="graphLayout">Layout</label>
+            <select class="select" id="graphLayout"
+                    title="Where the nodes sit. Projection coordinates keeps each image exactly where the 2D map put it, so the graph is directly comparable with the scatter view. Force-directed pulls linked images together and pushes unlinked ones apart, which separates the groups clearly but abandons the map's positions.">
+              <option value="projection">Projection coordinates</option>
+              <option value="force">Force-directed relaxation</option>
+            </select>
+            <label class="label" for="graphColorBy">Color nodes by</label>
+            <select class="select" id="graphColorBy"
+                    title="Community is the graph's own division of the collection, found by modularity: it separates groups even when everything is connected, which is the usual case. Connected component only separates images with no path between them at all. Cluster reuses the K-Means labels from the projection, so you can see where the two methods disagree. Degree shades by number of links: warm = hub, cool = fringe.">
+              <option value="community">Community (Louvain)</option>
+              <option value="component">Connected component</option>
+              <option value="cluster">Cluster (if present)</option>
+              <option value="degree">Degree</option>
+            </select>
+            <label class="label" for="graphEdgeColor">Color edges by</label>
+            <select class="select" id="graphEdgeColor"
+                    title="Similarity shades each link by how alike the two images are. Projection stress compares the link's length on screen with its real similarity: a long, strong link marks a place where the 2D map separated images the model considers close. Uniform draws every link the same.">
+              <option value="similarity">Similarity</option>
+              <option value="stress">Projection stress</option>
+              <option value="uniform">Uniform</option>
+            </select>
+            <p class="help" id="edgeColorHint" hidden>Projection stress needs the
+            <strong>Projection coordinates</strong> layout: in the force layout the positions come from the links
+            themselves, so comparing the two would be circular.</p>
+            <label class="check-row"
+                   title="Draw each node as its image instead of a coloured dot. Switches off automatically above 1200 nodes, where thumbnails are too small to read.">
+              <input id="graphShowThumbs" type="checkbox" checked /> Show thumbnails on nodes
+            </label>
+            <div class="fld" title="Diameter of each node in pixels. Smaller nodes make the link structure visible; larger ones make the images readable.">
+              <div class="lbl"><span>Node size</span></div>
+              <input id="graphNodeSize" type="range" min="6" max="80" value="26" aria-label="Node size" />
+            </div>
+            <div class="fld" title="Fade the images on the nodes from 5% to 100%, so the links underneath stay visible in dense areas.">
+              <div class="lbl"><span>Thumbnail opacity</span><span class="mono" id="graphOpacityValue">100%</span></div>
+              <input id="graphOpacity" type="range" min="5" max="100" step="5" value="100" aria-label="Thumbnail opacity" />
+            </div>
+            <div class="fld" title="Fade the links. At 0 they disappear and the graph reads as a positioned scatter; raise it to follow individual connections.">
+              <div class="lbl"><span>Edge opacity</span><span class="mono" id="graphEdgeOpacityValue">35%</span></div>
+              <input id="graphEdgeOpacity" type="range" min="0" max="100" step="5" value="35" aria-label="Edge opacity" />
+            </div>
+          </div>
+        </section>
+      </div>
+    </aside>
+
+    <section class="graph-center">
+      <div class="graph-stats" id="graphStats">
+        <div class="gs-stat" title="One node per image in the projection."><span class="k">Nodes</span><span class="v mono" id="statNodes">--</span></div>
+        <div class="gs-stat" title="Links kept after the k, similarity and reciprocity settings are applied. A link between two images counts once, not twice."><span class="k">Edges</span><span class="v mono" id="statEdges">--</span></div>
+        <div class="gs-stat" title="Groups the graph itself finds by modularity: images that link to each other far more than to the rest. Unlike components, communities divide a graph that is fully connected - which is the usual case."><span class="k">Communities</span><span class="v mono" id="statCommunities">--</span></div>
+        <div class="gs-stat" title="How clearly the communities separate, from 0 to about 1. Below roughly 0.3 the division is weak and the collection is fairly homogeneous; above 0.5 the groups are strongly distinct."><span class="k">Modularity</span><span class="v mono" id="statModularity">--</span></div>
+        <div class="gs-stat" title="Links whose removal would split the graph in two. A bridge is the single connection holding two groups together - often the most interesting relationship on screen."><span class="k">Bridges</span><span class="v mono" id="statBridges">--</span></div>
+        <div class="gs-stat" title="Images left with no link at all - usually because the similarity threshold removed theirs. These are the outliers of the collection."><span class="k">Isolated</span><span class="v mono" id="statIsolated">--</span></div>
+        <div class="gs-spacer"></div>
+        <div class="gs-stat" title="Current zoom level. Scroll to zoom towards the cursor, drag to pan."><span class="k">Zoom</span><span class="v mono" id="statZoom">1.00x</span></div>
+      </div>
+
+      <div class="plot-wrap graph-wrap">
+        <canvas id="graphCanvas"></canvas>
+        <div class="plot-toolbar">
+          <button type="button" id="graphZoomIn" title="Zoom in. The scroll wheel zooms towards the cursor instead.">+</button>
+          <button type="button" id="graphZoomOut" title="Zoom out">-</button>
+          <button type="button" id="graphFit" title="Frame the whole graph in the window (shortcut: F)">fit</button>
+          <button type="button" id="graphReset" title="Back to 1x with no pan (shortcut: R)">reset</button>
+          <div class="div"></div>
+          <button type="button" id="graphExportPng" title="Save the current view as a PNG image">png</button>
+        </div>
+        <div class="graph-empty" id="graphEmpty">
+          <h3>No graph yet</h3>
+          <p>Pick a saved projection on the left and press <strong>Build graph</strong>. Projections made with the
+          Visual Features provider work too — their feature vectors are used as the embedding space.</p>
+          <p class="ge-hint">New to this view? Read <button class="link-btn" type="button" data-open-help>how to read it</button> first.</p>
+        </div>
+      </div>
+    </section>
+
+    <aside class="graph-inspector" id="graphInspector">
+      <div class="inspector-tabs" role="tablist">
+        <button class="inspector-tab active" type="button" data-inspector-tab="selected"
+                title="The image you clicked, and its nearest neighbours">Selected</button>
+        <button class="inspector-tab" type="button" data-inspector-tab="structure"
+                title="What the graph says about the collection as a whole: its communities, its bridges and the images holding it together">Structure</button>
+      </div>
+      <div class="drawer-body inspector-pane active" id="graphInspectorBody" data-inspector-pane="selected">
+        <p class="help">Click a node to see its nearest neighbours and how similar they are.</p>
+      </div>
+      <div class="drawer-body inspector-pane" id="graphStructureBody" data-inspector-pane="structure">
+        <p class="help">Build the graph to see its structure.</p>
+      </div>
+    </aside>
+    <div class="help-modal" id="graphHelpModal" hidden>
+      <div class="help-backdrop" data-close-help></div>
+      <article class="help-panel" role="dialog" aria-modal="true" aria-labelledby="graphHelpTitle">
+        <header class="help-head">
+          <h2 id="graphHelpTitle">How the neighbor graph works</h2>
+          <button class="btn btn-icon btn-ghost btn-sm" type="button" data-close-help aria-label="Close">&times;</button>
+        </header>
+        <div class="help-body">
+
+          <section>
+            <h3>What it answers</h3>
+            <p>
+              The scatter plot answers <em>where does this image sit in the collection overall</em>. It cannot reliably
+              answer <em>which images is this one actually closest to</em>, because turning a 512- or 1024-dimensional
+              embedding into two dimensions has to throw information away. Two works can land next to each other on the
+              map without being similar at all, simply because the projection had nowhere else to put them.
+            </p>
+            <p>
+              This view computes the relationships <strong>before</strong> that flattening. Each image is compared with
+              every other image in the model's own space, and linked to its closest matches. A line here means the model
+              really does consider those two images alike.
+            </p>
+          </section>
+
+          <section>
+            <h3>How it is built</h3>
+            <ol class="help-steps">
+              <li><strong>Load the vectors.</strong> The graph reuses the embedding file the selected projection was
+              made from. Nothing is re-encoded and no model is loaded, which is why it takes about a second.</li>
+              <li><strong>Compare everything with everything.</strong> Similarity is the cosine between two vectors:
+              1.0 means identical direction, 0 means unrelated. This is the same measure text search uses.</li>
+              <li><strong>Keep the top k per image.</strong> Each image proposes a link to its k closest matches.</li>
+              <li><strong>Merge the pairs.</strong> If A picked B and B picked A, that is one link, marked
+              <em>mutual</em> and drawn slightly heavier. A link only one side proposed is drawn lighter.</li>
+              <li><strong>Apply your filters</strong> — the similarity threshold and the reciprocal-only switch — and
+              then work out which images ended up connected to which.</li>
+            </ol>
+          </section>
+
+          <section>
+            <h3>Communities: how the collection divides</h3>
+            <p>
+              <strong>Connected components</strong> only separate images with no path between them at all. Once k is
+              high enough almost everything ends up in one component, and colouring by it tells you nothing —
+              one colour for the whole screen.
+            </p>
+            <p>
+              <strong>Communities</strong> answer the question components cannot. The algorithm (Louvain) looks for
+              groups whose members link to each other far more than they link outward, and keeps refining the division
+              until no move improves it. It works inside a fully connected graph, so it divides your collection even
+              when every image is reachable from every other.
+            </p>
+            <p>
+              <strong>What you get from it.</strong> This is the graph's own opinion about how the collection is
+              organised, arrived at without the 2D projection and without K-Means. Comparing it with the cluster
+              colours is the useful part: where the two agree, the grouping is solid; where they disagree, the
+              projection or the clustering has distorted something. The <em>modularity</em> figure says how clear-cut
+              the division is — roughly, below 0.3 the collection is fairly homogeneous and the groups are weak, above
+              0.5 they are strongly distinct. Communities also change with k and the similarity threshold, which is
+              itself informative: a division that survives a range of settings is a real one.
+            </p>
+          </section>
+
+          <section>
+            <h3>Bridges and the images that hold the graph together</h3>
+            <p>
+              A <strong>bridge</strong> is a link whose removal would split the graph in two. It is the single
+              connection holding two groups together, and in a collection it usually marks the work that belongs to
+              both worlds — the landscape with a figure in it, the drawing that shares a technique with one group and
+              a subject with another. Bridges are drawn heavier and in a distinct colour, and listed in the
+              <em>Structure</em> panel.
+            </p>
+            <p>
+              An <strong>articulation point</strong> is the same idea applied to an image rather than a link: remove
+              that one work and the graph falls apart. Those images are marked with a ring. Both are computed exactly,
+              not estimated, and both change as you move k and the threshold.
+            </p>
+          </section>
+
+          <section>
+            <h3>Projection stress: where the 2D map lies</h3>
+            <p>
+              In the <strong>Projection coordinates</strong> layout every link has two measurements that ought to
+              agree: how far apart the two images sit on screen, and how similar the model says they are. When you
+              colour edges by <em>projection stress</em>, the warm ones are the links where they disagree most —
+              strongly similar images that the projection pushed far apart.
+            </p>
+            <p>
+              Those are exactly the places where the scatter plot is misleading you, and they are unavoidable: any
+              projection from hundreds of dimensions into two has to break some relationships. This just shows you
+              which ones, so you know where not to trust the map.
+            </p>
+          </section>
+
+          <section>
+            <h3>Reading the picture</h3>
+            <ul class="help-list">
+              <li><strong>A tight knot</strong> is a group of works the model finds interchangeable: a series, a set of
+              variants, or duplicates.</li>
+              <li><strong>A hub</strong> — a node many links converge on — is a typical, representative example of its
+              group. Colour by <em>Degree</em> to find hubs quickly.</li>
+              <li><strong>A bridge</strong> — a single link joining two otherwise separate knots — is often the most
+              interesting thing on screen: the work that connects two visual worlds.</li>
+              <li><strong>An isolated node</strong> has no link left after filtering. It is an outlier: nothing else in
+              the collection is close to it.</li>
+              <li><strong>Separate islands</strong> (components) mean the collection genuinely splits into groups that
+              share nothing at this value of k.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>How the settings change what you see</h3>
+            <dl class="help-defs">
+              <dt>Neighbours per image (k)</dt>
+              <dd>The single most important control. At k=1 you see only each image's single best match and the graph
+              breaks into many pairs. At k=10 nearly everything joins one mass. Raise it until the structure you care
+              about appears, then stop.</dd>
+
+              <dt>Minimum similarity</dt>
+              <dd>Cuts links below a confidence level. Use it when the graph is a hairball: raise the threshold until
+              only relationships you would defend survive. Images whose links are all cut become isolated.</dd>
+
+              <dt>Only reciprocal edges</dt>
+              <dd>k forces every image to pick someone, even an outlier with no real neighbour. Requiring both sides to
+              have chosen each other removes those one-sided guesses.</dd>
+
+              <dt>Layout</dt>
+              <dd><em>Projection coordinates</em> keeps every node where the 2D map put it, so you can see directly
+              where the map misleads: long links mean the projection separated images the model considers close.
+              <em>Force-directed</em> ignores the map and lets the links arrange themselves, which is better for seeing
+              the group structure on its own terms.</dd>
+
+              <dt>Color nodes by</dt>
+              <dd><em>Component</em> shows the graph's own grouping. <em>Cluster</em> shows the K-Means labels from the
+              projection — where the two disagree, one of them is wrong about the collection. <em>Degree</em> shades
+              hubs warm and fringe nodes cool.</dd>
+            </dl>
+          </section>
+
+          <section>
+            <h3>Interacting</h3>
+            <p>
+              <strong>Click a node</strong> to dim everything except its neighbourhood; the panel on the right lists its
+              neighbours ranked by similarity, and clicking one of those jumps to it. <strong>Scroll</strong> zooms
+              towards the cursor, <strong>drag</strong> pans. <span class="kbd">F</span> fits the graph,
+              <span class="kbd">R</span> resets the view, <span class="kbd">B</span> rebuilds it, and
+              <span class="kbd">Esc</span> clears the selection.
+            </p>
+          </section>
+
+          <section>
+            <h3>Limits worth knowing</h3>
+            <ul class="help-list">
+              <li>Capped at 5000 images. Beyond that, build the graph from a subfolder, or use the grid mosaic.</li>
+              <li>Similarity is only as meaningful as the model that produced the embeddings. A Visual Features
+              projection groups by colour and texture; a CLIP projection groups by subject matter.</li>
+              <li>An image whose embedding vector is unusable is kept in place but treated as unrelated to everything,
+              and reported in the status message.</li>
+            </ul>
+          </section>
+
+        </div>
+      </article>
+    </div>
+  </main>
+  <script src="/static/js/neighbor_graph.js"></script>
+</body>
+</html>

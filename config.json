@@ -1,0 +1,46 @@
+{
+  "host": "127.0.0.1",
+  "port": 8765,
+  "default_image_dir": "img",
+  "output_dir": "output",
+  "default_model_key": "openclip_vit_b_32",
+  "default_reducer": "umap",
+  "batch_size": 32,
+  "block_start_if_dependencies_missing": true,
+
+  "optional_clustering": {
+    "enabled_by_default": false,
+    "method": "kmeans",
+    "auto_min_k": 2,
+    "auto_max_k": 8,
+    "fixed_k": 5
+  },
+
+  "semantic_search": {
+    "enabled": true,
+    "default_top_k": 30,
+    "default_threshold": null,
+    "save_search_results": false,
+    "highlight_results_on_plot": true
+  },
+
+  "debug": {
+    "job_logs": true,
+    "json_debug_reports": true,
+    "batch_retry": true
+  },
+
+  "limits": {
+    "max_jobs_in_memory": 50,
+    "thumb_cache_max_mb": 512,
+    "max_log_files": 200,
+    "max_concurrent_jobs": 1
+  },
+
+  "views": {
+    "grid_mosaic_enabled": true,
+    "neighbor_graph_enabled": true,
+    "neighbor_graph_default_k": 4,
+    "thumbnail_opacity": 1.0
+  }
+}

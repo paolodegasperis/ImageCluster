@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Embedding Projection - ImageCluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="redesign workflow-page" data-density="cozy">
+  <main class="mv-shell" data-screen-label="02 Main View - Embedding Projection">
+    <header class="topbar">
+      <div class="brand-mark">P</div>
+      <strong>Projector</strong>
+      <a href="/">Dashboard</a>
+      <span>/</span>
+      <strong>Embedding Projection</strong>
+      <span class="topbar-spacer"></span>
+      <a href="/graph">Neighbor graph</a>
+      <a href="/lens" title="Questions the map cannot answer: what separates two groups in words, concept arithmetic, and where two models disagree">Lenses</a>
+      <a href="/guide" title="Plain-language explanation of every feature in the app">Guide</a>
+      <span class="chip chip-success dot" id="topbarStatusChip">System ready</span>
+      <button class="topbar-gear" type="button" aria-label="Settings">Settings</button>
+    </header>
+
+    <aside class="left-rail">
+      <div class="lr-scroll">
+        <div class="section-title-rail">
+          <span>Workflow</span>
+          <span class="muted mono" id="systemStatus">Checking system status...</span>
+        </div>
+
+        <section class="step open active">
+          <div class="step-head">
+            <div class="num step-ok">✓</div>
+            <div class="ttl">Image folder</div>
+            <div class="meta" id="workflowImageCount">img</div>
+          </div>
+          <div class="step-body">
+            <p class="help">Place images in the project <code>img</code> folder.</p>
+            <button class="btn btn-sm" id="scanImageDirBtn">Scan img folder</button>
+            <div class="status-banner idle" id="imageDirStatus">Not scanned yet.</div>
+          </div>
+        </section>
+
+        <section class="step open active">
+          <div class="step-head">
+            <div class="num step-ok">✓</div>
+            <div class="ttl">Embedding model</div>
+            <div class="meta" id="workflowModelShort">Registry</div>
+          </div>
+          <div class="step-body">
+            <p class="help">Choose the model used to encode every image. CLIP-like models also support text search.</p>
+            <label class="label" for="modelKey">Model</label>
+            <select class="select" id="modelKey"><option value="openclip_vit_b_32">Loading models...</option></select>
+            <div class="model-option-list" id="modelOptionList"></div>
+            <div class="status-banner idle" id="modelInfo">The default model is compatible with the previous OpenCLIP workflow.</div>
+          </div>
+        </section>
+
+        <section class="step open active">
+          <div class="step-head">
+            <div class="num step-ok">✓</div>
+            <div class="ttl">Projection</div>
+            <div class="meta" id="workflowReducerShort">UMAP</div>
+          </div>
+          <div class="step-body">
+            <label class="label" for="reducer">Projection method</label>
+            <select class="select" id="reducer"
+                    title="UMAP and t-SNE decide for themselves what the axes mean, and the answer is nothing you can put into words. Semantic axes let you name both axes yourself, so left and right mean something.">
+              <option value="umap">UMAP - recommended</option>
+              <option value="tsne">t-SNE - advanced</option>
+              <option value="semantic">Semantic axes - you name them</option>
+            </select>
+            <div class="seg projection-seg" aria-hidden="true">
+              <button type="button" data-reducer-choice="umap" class="active">UMAP</button>
+              <button type="button" data-reducer-choice="tsne">t-SNE</button>
+              <button type="button" data-reducer-choice="semantic">Named</button>
+            </div>
+
+            <div id="semanticAxes" hidden>
+              <p class="help">
+                Each axis is the direction between two phrases. The projection then places every image by how far
+                it leans towards one end or the other &mdash; so the plot has axes you chose and can read, instead of
+                two directions the algorithm picked for its own reasons.
+                <button class="link-btn" type="button" data-semantic-help>How this works</button>
+              </p>
+              <div class="axis-pair">
+                <span class="ap-title">Horizontal axis</span>
+                <label class="ap-field">
+                  <span>Left end</span>
+                  <input class="input" id="semanticXNeg" type="text" placeholder="a landscape"
+                         title="What the left of the plot should mean. Several phrasings separated by ; describe a direction more reliably than one." />
+                </label>
+                <label class="ap-field">
+                  <span>Right end</span>
+                  <input class="input" id="semanticXPos" type="text" placeholder="a portrait of a person"
+                         title="What the right of the plot should mean." />
+                </label>
+              </div>
+              <div class="axis-pair">
+                <span class="ap-title">Vertical axis</span>
+                <label class="ap-field">
+                  <span>Bottom end</span>
+                  <input class="input" id="semanticYNeg" type="text" placeholder="a calm scene"
+                         title="What the bottom of the plot should mean." />
+                </label>
+                <label class="ap-field">
+                  <span>Top end</span>
+                  <input class="input" id="semanticYPos" type="text" placeholder="a dramatic scene"
+                         title="What the top of the plot should mean." />
+                </label>
+              </div>
+              <div class="axis-presets">
+                <span class="lbl">Try</span>
+                <button class="btn btn-xs" type="button" data-axis-preset="subject">Subject</button>
+                <button class="btn btn-xs" type="button" data-axis-preset="mood">Mood</button>
+                <button class="btn btn-xs" type="button" data-axis-preset="setting">Setting</button>
+              </div>
+              <button class="btn btn-sm" type="button" id="semanticPreviewBtn"
+                      title="Check the axes against the projection already loaded, without generating a new one">Preview on the loaded projection</button>
+              <div class="status-banner idle" id="semanticStatus">Needs a CLIP-family model: the axes are built from text.</div>
+            </div>
+
+            <div id="visualFeaturesAxes" style="display:none">
+              <p class="help">Visual Features projects on fixed, interpretable axes — pick which feature maps to each axis. The same image always lands in the same place.</p>
+              <div class="cluster-mini-grid">
+                <div class="fld"><div class="lbl"><span>X axis</span></div><select class="select" id="vfXFeature"></select></div>
+                <div class="fld"><div class="lbl"><span>Y axis</span></div><select class="select" id="vfYFeature"></select></div>
+              </div>
+            </div>
+
+            <details class="rail-details">
+              <summary>Advanced projection settings</summary>
+              <div class="fld">
+                <div class="lbl"><span>Batch size</span></div>
+                <input class="input mono" id="batchSize" type="number" min="1" max="256" value="32" />
+              </div>
+              <div class="fld">
+                <div class="lbl"><span>UMAP neighbors</span></div>
+                <input class="input mono" id="umapNeighbors" type="number" min="2" max="200" value="15" />
+              </div>
+              <div class="fld">
+                <div class="lbl"><span>UMAP min dist</span></div>
+                <input class="input mono" id="umapMinDist" type="number" min="0" max="1" step="0.05" value="0.1" />
+              </div>
+              <div class="fld">
+                <div class="lbl"><span>t-SNE perplexity</span></div>
+                <input class="input mono" id="tsnePerplexity" type="number" min="2" max="100" value="30" />
+              </div>
+              <div class="fld">
+                <div class="lbl"><span>t-SNE iterations</span></div>
+                <input class="input mono" id="tsneIterations" type="number" min="250" max="5000" value="1000" />
+              </div>
+              <label class="check-row"><input id="useCache" type="checkbox" checked /> Reuse cached embeddings when available</label>
+              <label class="check-row"><input id="showPlannedModels" type="checkbox" /> Show planned roadmap models</label>
+            </details>
+
+            <details class="rail-details">
+              <summary>Clustering (K-Means)</summary>
+              <label class="check-row"><input id="clusterEnabled" type="checkbox" /> Add optional K-Means clusters to the projection</label>
+              <div class="fld">
+                <div class="lbl"><span>Cluster count</span></div>
+                <select class="select" id="clusterMode">
+                  <option value="auto">Auto, by silhouette score</option>
+                  <option value="fixed">Fixed K</option>
+                </select>
+              </div>
+              <div class="cluster-mini-grid">
+                <div class="fld"><div class="lbl"><span>Auto min K</span></div><input class="input mono" id="clusterMinK" type="number" min="2" max="50" value="2" /></div>
+                <div class="fld"><div class="lbl"><span>Fixed K</span></div><input class="input mono" id="clusterK" type="number" min="2" max="50" value="5" /></div>
+                <div class="fld"><div class="lbl"><span>Auto max K</span></div><input class="input mono" id="clusterMaxK" type="number" min="2" max="50" value="8" /></div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <div class="section-title-rail saved-title"><span>Saved projections</span></div>
+        <select class="select mono saved-select" id="projectionList"><option value="">Loading...</option></select>
+      </div>
+
+      <div class="lr-footer">
+        <div class="generate-box">
+          <div class="gen-summary">
+            <span class="gk">Images</span><span class="gv">img</span>
+            <span class="gk">Model</span><span class="gv">selected</span>
+            <span class="gk">Projection</span><span class="gv">UMAP</span>
+            <span class="gk">Clustering</span><span class="gv">optional</span>
+          </div>
+          <button class="gen-btn" id="startBtn">Generate projection</button>
+          <button class="btn btn-sm" id="cancelBtn" disabled>Cancel</button>
+          <div id="jobBox" class="status-banner idle">Ready.</div>
+          <div id="jobLinks" class="small debug-links"></div>
+          <div class="progress compact-progress"><div id="progressBar"></div></div>
+        </div>
+      </div>
+    </aside>
+
+    <section class="mv-center">
+      <div class="search-bar" id="semanticSearchBar">
+        <span class="sb-icon">⌕</span>
+        <input id="searchQuery" type="text" placeholder="Describe what you're looking for - e.g. gold background Madonna and Child" />
+        <span class="sb-meta" id="searchCapability">Select a text-search model and load or generate embeddings.</span>
+        <button class="btn btn-icon btn-ghost btn-sm" id="clearSearchBtn" title="Clear results">×</button>
+        <button class="btn btn-icon btn-ghost btn-sm" type="button" data-search-options title="Search options">⚙</button>
+        <button class="sb-go" id="searchBtn">Search</button>
+      </div>
+
+      <div class="search-opts" id="searchOptionsPanel" hidden>
+        <div class="so-grid">
+          <div class="fld"><div class="lbl"><span>Top results</span></div><input class="input mono" id="searchTopK" type="number" min="1" max="500" value="30" /></div>
+          <div class="fld"><div class="lbl"><span>Score threshold</span></div><input class="input mono" id="searchThreshold" type="number" min="-1" max="1" step="0.01" placeholder="optional" /></div>
+        </div>
+        <div class="so-actions">
+          <button class="btn btn-sm" id="buildIndexBtn">Build searchable index</button>
+          <button class="btn btn-sm" id="exportSearchBtn" disabled>Export results TSV</button>
+          <label class="so-toggle"><input id="highlightSearchToggle" type="checkbox" checked /> Highlight on plot</label>
+          <label class="so-toggle"><input id="showOnlySearchToggle" type="checkbox" /> Show only results</label>
+        </div>
+      </div>
+
+      <div class="plot-wrap">
+        <canvas id="plot"></canvas>
+        <div class="plot-legend" id="plotLegend" hidden></div>
+        <div class="plot-toolbar">
+          <button type="button" id="zoomInBtn" title="Zoom in. The scroll wheel zooms towards the cursor instead.">+</button>
+          <button type="button" id="zoomOutBtn" title="Zoom out">-</button>
+          <button type="button" id="fitViewBtn" title="Frame the images currently visible - after filtering by cluster or search, this zooms to that subset (shortcut: F)">fit</button>
+          <button type="button" id="resetViewBtn" title="Back to 1x with no pan (shortcut: R)">reset</button>
+          <div class="div"></div>
+          <button type="button" data-view-mode="images" class="active"
+                  title="Thumbnails at their projected position. True to the data, but images overlap wherever the collection is dense.">img</button>
+          <button type="button" data-view-mode="points"
+                  title="Coloured marks instead of images. Fastest, and the only way to see the shape of a large projection at a glance.">pts</button>
+          <button type="button" data-view-mode="mosaic"
+                  title="Grid mosaic: every image gets its own equal cell, so nothing overlaps and neighbours stay neighbours. Best for actually looking at the pictures.">grid</button>
+          <button type="button" id="toggleModeBtn" class="mode-cycle"
+                  title="Cycle scatter, points and mosaic (shortcut: M)">img</button>
+          <div class="div"></div>
+          <a class="graph-link is-disabled" id="openGraphBtn" target="_blank" rel="noopener"
+             title="Load or generate a projection first.">graph</a>
+          <button type="button" id="exportPngBtn" title="Save the current view as a PNG image">png</button>
+        </div>
+        <div class="score-legend" id="scoreLegend" hidden>
+          <span class="sl-label" id="scoreLegendLabel"></span>
+          <span class="sl-ramp"><i id="scoreLegendLow"></i><i id="scoreLegendHigh"></i></span>
+          <button class="btn btn-icon btn-ghost btn-xs" type="button" id="scoreClearBtn"
+                  title="Go back to colouring by cluster" aria-label="Clear">&times;</button>
+        </div>
+        <div class="plot-status">
+          <div class="ps-stat"><span class="k">Showing</span><span class="v">canvas</span></div>
+          <div class="ps-stat"><span class="k">Mode</span><span class="v">images</span></div>
+          <div class="ps-stat"><span class="k">Zoom</span><span class="v">1.00x</span></div>
+        </div>
+      </div>
+
+      <div class="mosaic-controls" id="mosaicControls" hidden>
+        <span class="mc-title" title="Every image is assigned its own cell of a grid, keeping images that are near each other in the projection near each other in the grid.">Mosaic</span>
+        <label class="mc-field"
+               title="How images are matched to cells. Optimal solves the assignment exactly, giving the best possible mosaic, but is limited to 2000 images. Recursive split is much faster and handles any size, at the cost of not being globally optimal. Auto picks for you.">
+          <span>Assignment</span>
+          <select class="select" id="mosaicAlgorithm">
+            <option value="auto">Auto</option>
+            <option value="optimal">Optimal (exact, small sets)</option>
+            <option value="split">Recursive split (fast)</option>
+          </select>
+        </label>
+        <label class="mc-field"
+               title="Fix the number of columns, or leave empty to let the grid follow the window shape. A fixed value keeps the layout stable when you resize.">
+          <span>Columns</span>
+          <input class="input mono" id="mosaicColumns" type="number" min="1" max="400" placeholder="auto" />
+        </label>
+        <button class="btn btn-sm" type="button" id="mosaicRecomputeBtn"
+                title="Rebuild the layout with the current settings">Recompute</button>
+        <span class="mc-status mono" id="mosaicStatus"
+              title="Grid size, image count and which assignment method was actually used">Not computed yet.</span>
+      </div>
+      <section class="bottom-dock" id="projectionDock">
+        <div class="dock-bar">
+          <div class="dock-tabs">
+            <button class="dock-tab active" type="button" data-dock-tab="cluster"
+                    title="The images inside each cluster, most representative first, with a summary of every cluster">Cluster gallery</button>
+            <button class="dock-tab" type="button" data-dock-tab="search"
+                    title="Results of the last text query">Search results <span id="searchStatus" class="dt-count">No search yet.</span></button>
+            <button class="dock-tab" type="button" data-dock-tab="similar"
+                    title="Images most similar to one image you picked. Works with every model, including the image-only ones that cannot do text search.">Similar images</button>
+            <button class="dock-tab" type="button" data-dock-tab="analysis"
+                    title="Whole-collection checks: near-duplicates and outliers">Analysis</button>
+          </div>
+          <div class="dock-spacer"></div>
+          <button class="btn btn-sm btn-ghost" type="button" data-dock-toggle>Expand</button>
+        </div>
+        <div class="dock-body">
+          <section class="dock-pane active" id="clusterPanel" style="display:none">
+            <div class="dock-controls">
+              <div class="dc-field"><span class="lbl">Cluster</span><select class="select" id="clusterSelect"><option value="">No clusters yet</option></select></div>
+              <label class="dc-toggle"><input id="highlightClusterToggle" type="checkbox" checked /> Highlight selected cluster on plot</label>
+              <label class="dc-toggle"><input id="showOnlyClusterToggle" type="checkbox" /> Show only the selected cluster</label>
+              <button class="btn btn-sm" type="button" id="exportClusterBtn" title="Copy the selected cluster's images into output/exports/">Export cluster</button>
+              <button class="btn btn-sm" type="button" id="exportAllClustersBtn" title="Copy every cluster into its own folder under output/exports/">Export all</button>
+              <div class="dc-field" title="Typicality puts the most representative images first, so the top of the gallery shows what the cluster is about and the bottom shows its marginal cases. Filename is the plain alphabetical order.">
+                <span class="lbl">Sort by</span>
+                <select class="select" id="clusterSortSelect">
+                  <option value="typicality">Typicality</option>
+                  <option value="filename">Filename</option>
+                </select>
+              </div>
+              <div class="dc-spacer"></div>
+              <div class="dc-field" title="Size of the thumbnails in this gallery"><span class="lbl">Gallery size</span><input id="clusterThumbSize" type="range" min="80" max="320" value="160" /></div>
+            </div>
+            <div class="cluster-strip" id="clusterStrip" hidden></div>
+            <div id="clusterSummary" class="small dock-summary">Enable clustering to browse the images inside each cluster.</div>
+            <div id="clusterGallery" class="search-results cluster-results gallery-grid"></div>
+          </section>
+          <section class="dock-pane" id="similarDockPane">
+            <div class="dock-controls">
+              <div class="dc-field" title="How many similar images to return, ranked by cosine similarity in the model's own embedding space.">
+                <span class="lbl">Results</span>
+                <input class="input mono" id="similarTopK" type="number" min="1" max="500" value="24" />
+              </div>
+              <label class="dc-toggle" title="Ring the query image and its matches on the plot, so you can see whether the projection put them near each other.">
+                <input id="highlightSimilarToggle" type="checkbox" checked /> Highlight on plot
+              </label>
+              <div class="dc-spacer"></div>
+              <span class="small muted">Double-click any image on the plot to search from it.</span>
+            </div>
+            <div id="similarStatus" class="small dock-summary">Double-click an image on the plot, or use the Similar button on any card.</div>
+            <div id="similarResults" class="analysis-host"></div>
+          </section>
+
+          <section class="dock-pane" id="analysisDockPane">
+            <div class="dock-controls">
+              <div class="seg analysis-seg" role="tablist">
+                <button type="button" data-analysis-tool="duplicates" class="active"
+                        title="Find images that are effectively the same picture — re-saves, crops, colour variants">Duplicates</button>
+                <button type="button" data-analysis-tool="outliers"
+                        title="Find the images least like anything else in the collection">Outliers</button>
+              </div>
+              <div class="dc-spacer"></div>
+              <span class="small muted">Both read the stored embeddings — no model is loaded.</span>
+            </div>
+
+            <div data-analysis-panel="duplicates">
+              <div class="dock-controls sub-controls">
+                <div class="dc-field" title="Cosine similarity above which two images count as the same picture. 0.98 catches re-saves and light crops; lower values also catch colour variants, at the risk of pulling in a tight series.">
+                  <span class="lbl">Threshold</span>
+                  <input class="input mono" id="duplicateThreshold" type="number" min="0.5" max="1" step="0.01" value="0.98" />
+                </div>
+                <button class="btn btn-sm" type="button" id="duplicateScanBtn"
+                        title="Compare every image with every other one and group the matches">Scan for duplicates</button>
+              </div>
+              <div id="duplicateStatus" class="small dock-summary">Not scanned yet.</div>
+              <div id="duplicateResults" class="analysis-host"></div>
+            </div>
+
+            <div data-analysis-panel="outliers" hidden>
+              <div class="dock-controls sub-controls">
+                <div class="dc-field" title="An image is judged by its k-th nearest neighbour rather than its nearest, so a pair of duplicates that resembles nothing else still reads as isolated.">
+                  <span class="lbl">Neighbour rank (k)</span>
+                  <input class="input mono" id="outlierK" type="number" min="1" max="20" value="5" />
+                </div>
+                <div class="dc-field" title="How many of the most isolated images to list">
+                  <span class="lbl">Show</span>
+                  <input class="input mono" id="outlierTopK" type="number" min="1" max="500" value="40" />
+                </div>
+                <button class="btn btn-sm" type="button" id="outlierScanBtn"
+                        title="Rank every image by how far it is from its k-th nearest neighbour">Find outliers</button>
+              </div>
+              <div id="outlierStatus" class="small dock-summary">Not scanned yet.</div>
+              <div id="outlierResults" class="analysis-host"></div>
+            </div>
+          </section>
+
+          <section class="dock-pane" id="searchDockPane">
+            <div class="dock-controls">
+              <div class="dc-field"><span class="lbl">Result thumbnail size</span><input id="searchThumbSize" type="range" min="80" max="320" value="160" /></div>
+              <div class="dc-spacer"></div>
+              <button class="btn btn-sm" id="downloadBtn" disabled>Download TSV</button>
+            </div>
+            <div id="searchError" class="search-error" hidden></div>
+            <div id="searchResults" class="search-results gallery-grid"></div>
+          </section>
+        </div>
+      </section>
+    </section>
+
+    <aside class="right-rail">
+      <button class="rr-btn active" type="button" title="Explore" data-open-drawer="explore"><span class="rr-icon rr-sliders"></span></button>
+      <button class="rr-btn" type="button" title="Filters" data-open-drawer="filters"><span class="rr-icon rr-filter"></span></button>
+      <button class="rr-btn" type="button" title="Session" data-open-drawer="session"><span class="rr-icon rr-doc"></span></button>
+      <button class="rr-btn" type="button" title="Export" data-open-drawer="export"><span class="rr-icon rr-nodes"></span></button>
+      <button class="rr-btn" type="button" title="Compare" data-open-drawer="session"><span class="rr-icon rr-columns"></span></button>
+      <button class="rr-btn" type="button" title="Download" data-open-drawer="export"><span class="rr-icon rr-download"></span></button>
+      <div class="rail-spacer"></div>
+      <button class="rr-btn" type="button" title="Help" data-open-drawer="help"><span class="rr-icon rr-info"></span></button>
+    </aside>
+
+    <aside class="drawer" id="workflowDrawer" hidden>
+      <div class="drawer-head">
+        <div class="dh-title" id="workflowDrawerTitle">Explore</div>
+        <button class="btn btn-icon btn-ghost btn-sm" type="button" data-close-workflow-drawer>×</button>
+      </div>
+      <div class="drawer-body">
+        <section class="sect" data-drawer-panel="explore">
+          <h5>View and thumbnails</h5>
+          <button class="btn btn-sm" id="drawerResetViewBtn" type="button" title="Back to 1x with no pan">Reset view</button>
+          <button class="btn btn-sm" id="drawerExportPngBtn" type="button" title="Save the current view as a PNG image">Export PNG</button>
+          <div class="fld" title="Size of each thumbnail on the scatter plot, in pixels. Ignored in mosaic mode, where the cell decides.">
+            <div class="lbl"><span>Thumbnail size</span></div>
+            <input id="thumbSize" type="range" min="16" max="128" value="48" aria-label="Thumbnail size" />
+          </div>
+          <div class="fld">
+            <div class="lbl"><span>Thumbnail opacity</span><span class="mono" id="thumbOpacityValue">100%</span></div>
+            <input id="thumbOpacity" type="range" min="5" max="100" step="5" value="100" aria-label="Thumbnail opacity"
+                   title="Fade the thumbnails from 5% to 100%. Lower values let you see through overlapping images and read the cluster colours underneath." />
+          </div>
+          <label class="check-row" title="Draw each thumbnail's cluster colour as a frame around it, so groups are readable without switching to points mode.">
+            <input id="showThumbnailOutline" type="checkbox" checked /> Show colored outline around thumbnails
+          </label>
+
+          <h5>Color by a concept</h5>
+          <p class="help">
+            Search returns a ranking; this returns a <em>distribution</em>. Every image is scored against the phrase
+            and the plot is shaded by the result, so you see where the concept is concentrated, where it thins out
+            and where it is absent &mdash; rather than only its thirty best matches.
+          </p>
+          <div class="fld">
+            <div class="lbl"><span>Concept</span></div>
+            <input class="input" id="conceptPhrase" type="text" placeholder="ruins"
+                   title="A phrase to score the whole collection against. Several phrasings separated by ; average into one direction." />
+          </div>
+          <button class="btn btn-sm" type="button" id="conceptApplyBtn"
+                  title="Score every image and shade the plot by the result">Shade the plot</button>
+          <button class="btn btn-sm" type="button" id="conceptClearBtn"
+                  title="Go back to colouring by cluster">Back to clusters</button>
+          <div class="status-banner idle" id="conceptStatus">Needs a CLIP-family model.</div>
+        </section>
+        <section class="sect" data-drawer-panel="filters" hidden>
+          <h5>Filters</h5>
+          <p class="help">Cluster and filename filters are visual placeholders for the next refinement pass.</p>
+        </section>
+        <section class="sect" data-drawer-panel="session" hidden>
+          <h5>Session summary</h5>
+          <div class="session-pills">
+            <div class="spill"><div class="k">Images</div><div class="v">img</div></div>
+            <div class="spill"><div class="k">Projection</div><div class="v">UMAP/t-SNE</div></div>
+            <div class="spill"><div class="k">Output</div><div class="vm">output/projections</div></div>
+          </div>
+        </section>
+        <section class="sect" data-drawer-panel="export" hidden>
+          <h5>Export</h5>
+          <button class="btn btn-sm" type="button" id="drawerDownloadBtn">Download TSV</button>
+          <button class="btn btn-sm" type="button" id="drawerBuildIndexBtn">Build searchable index</button>
+        </section>
+        <section class="sect" data-drawer-panel="help" hidden>
+          <h5>Keyboard</h5>
+          <p class="help"><span class="kbd">/</span> focuses search. <span class="kbd">Esc</span> closes the topmost thing open — preview, drawer, options, search focus — and only clears the results once nothing else is open.
+          <span class="kbd">G</span> generate. <span class="kbd">F</span> fit to visible points. <span class="kbd">R</span> reset view.
+          <span class="kbd">M</span> cycles scatter / points / mosaic.</p>
+          <h5>Analysis panels</h5>
+          <p class="help">
+            <strong>Similar images</strong> — double-click any image on the plot (or use the Similar button on a card)
+            to rank the collection by likeness to it. No model is loaded, so this works even with image-only models
+            that cannot search by text.<br />
+            <strong>Duplicates</strong> — groups of images that are effectively the same picture. A group marked
+            <em>chained</em> was joined through intermediaries rather than every member matching every other, which is
+            the signal to look before deleting.<br />
+            <strong>Outliers</strong> — the images least like anything else, judged by their k-th nearest neighbour.<br />
+            <strong>Cluster gallery</strong> — each cluster shows its <em>medoid</em>, the member closest to the
+            cluster centre, and the gallery is ordered most representative first.
+          </p>
+          <p class="help">
+            <strong>Compare two images</strong> — press <em>Compare</em> on any card (or in the preview) to put an
+            image in the tray, then pick a second. A bare similarity figure is hard to read on its own, so the
+            comparison also shows where each image sits in the other's neighbour list, how the pair ranks against all
+            other pairs, and which neighbours the two have in common.
+          </p>
+          <p class="help">The <strong>mosaic</strong> gives every image an equal grid cell so dense regions stay readable.
+          The <strong>neighbor graph</strong> opens as its own view and links each image to its nearest neighbours in the
+          full embedding space, not in the flattened 2D projection.</p>
+        </section>
+      </div>
+    </aside>
+
+    <div id="imagePreviewModal" class="image-modal" hidden>
+      <div class="image-modal-backdrop" data-close-preview></div>
+      <div class="image-modal-panel" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+        <button class="image-modal-close" type="button" data-close-preview>Close</button>
+        <img id="previewImage" alt="" />
+        <div class="image-modal-meta">
+          <h2 id="previewTitle">Image preview</h2>
+          <div id="previewDetails" class="small"></div>
+          <div class="preview-actions">
+            <button class="btn btn-sm" type="button" id="previewSimilarBtn"
+                    title="Find the images most similar to this one, using the model's own embedding space">Find similar images</button>
+            <button class="btn btn-sm" type="button" id="previewCompareBtn"
+                    title="Add this image to the comparison tray. Pick a second one to see exactly how the two relate.">Compare with...</button>
+            <a id="previewOpenLink" target="_blank" rel="noopener">Open image</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+    <!-- Comparison tray: a quiet strip that only appears once an image is picked,
+         so the workspace stays uncluttered until the feature is actually in use. -->
+    <div class="compare-tray" id="compareTray" hidden>
+      <span class="ct-label">Compare</span>
+      <div class="ct-slots">
+        <button class="ct-slot" type="button" data-compare-slot="a" title="First image. Click to clear it.">
+          <span class="ct-empty">A</span>
+        </button>
+        <span class="ct-vs">vs</span>
+        <button class="ct-slot" type="button" data-compare-slot="b" title="Second image. Click to clear it.">
+          <span class="ct-empty">B</span>
+        </button>
+      </div>
+      <span class="ct-hint" id="compareHint">Pick a second image</span>
+      <button class="btn btn-sm" type="button" id="compareRunBtn" disabled
+              title="Show how these two images relate">Compare</button>
+      <button class="btn btn-icon btn-ghost btn-sm" type="button" id="compareCloseBtn"
+              title="Clear the comparison tray" aria-label="Clear">&times;</button>
+    </div>
+
+    <div class="compare-modal" id="compareModal" hidden>
+      <div class="compare-backdrop" data-close-compare></div>
+      <article class="compare-panel" role="dialog" aria-modal="true" aria-labelledby="compareTitle">
+        <header class="compare-head">
+          <h2 id="compareTitle">How related are these two?</h2>
+          <button class="btn btn-icon btn-ghost btn-sm" type="button" data-close-compare aria-label="Close">&times;</button>
+        </header>
+        <div class="compare-body" id="compareBody"></div>
+      </article>
+    </div>
+
+  <script src="/static/js/clip_projection.js"></script>
+  <script src="/static/js/analysis_panels.js"></script>
+  <script src="/static/js/redesign_ui.js"></script>
+</body>
+</html>

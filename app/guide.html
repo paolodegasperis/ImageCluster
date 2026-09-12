@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>What you can find out - ImageCluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    /* Scoped to this page: a reading layout, not a workspace. */
+    .guide-page { background: var(--bg); color: var(--ink); }
+    .gd-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px 96px; }
+    .gd-hero { padding: 56px 0 32px; max-width: 760px; }
+    .gd-hero h1 { font-size: 34px; line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.02em; }
+    .gd-hero p { font-size: 17px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 14px; }
+
+    .gd-toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 8px; }
+    .gd-toc a {
+      font-size: 13px; padding: 6px 12px; border: 1px solid var(--border);
+      border-radius: 999px; background: var(--surface); color: var(--ink-soft); text-decoration: none;
+    }
+    .gd-toc a:hover { border-color: var(--accent); color: var(--accent-ink); }
+
+    .gd-section { padding-top: 48px; scroll-margin-top: 24px; }
+    .gd-section > h2 {
+      font-size: 13px; text-transform: uppercase; letter-spacing: .09em;
+      color: var(--muted); margin: 0 0 6px; font-weight: 600;
+    }
+    .gd-section > .gd-lead { font-size: 16px; line-height: 1.6; color: var(--ink-soft); max-width: 760px; margin: 0 0 22px; }
+
+    .gd-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
+    .gd-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      padding: 22px 22px 20px; box-shadow: var(--shadow-sm);
+    }
+    .gd-card h3 { font-size: 17px; margin: 0 0 4px; letter-spacing: -0.01em; }
+    .gd-where { font-size: 12px; color: var(--muted); font-family: var(--font-mono); margin: 0 0 12px; }
+    .gd-card p { font-size: 14.5px; line-height: 1.62; color: var(--ink-soft); margin: 0 0 11px; }
+    .gd-card p:last-child { margin-bottom: 0; }
+    .gd-q {
+      font-size: 15px; font-style: italic; color: var(--ink);
+      border-left: 3px solid var(--accent); padding-left: 12px; margin: 0 0 13px;
+    }
+    .gd-limit {
+      font-size: 13.5px; line-height: 1.55; color: var(--ink-soft);
+      background: var(--surface-inset); border-radius: var(--radius-sm);
+      padding: 11px 13px; margin-top: 13px;
+    }
+    .gd-limit strong { color: var(--ink); }
+
+    .gd-note {
+      max-width: 760px; margin: 40px 0 0; padding: 22px 24px;
+      border: 1px solid var(--border); border-left: 3px solid var(--warn);
+      border-radius: var(--radius); background: var(--surface);
+    }
+    .gd-note h3 { font-size: 16px; margin: 0 0 10px; }
+    .gd-note p, .gd-note li { font-size: 14.5px; line-height: 1.62; color: var(--ink-soft); }
+    .gd-note ul { margin: 10px 0 0; padding-left: 20px; }
+    .gd-note li { margin-bottom: 7px; }
+  </style>
+</head>
+<body class="redesign guide-page" data-density="cozy">
+  <main data-screen-label="05 Guide">
+    <header class="topbar">
+      <div class="brand-mark">P</div>
+      <strong>Projector</strong>
+      <a href="/">Dashboard</a>
+      <span>/</span>
+      <strong>What you can find out</strong>
+      <span class="topbar-spacer"></span>
+      <a class="btn btn-sm btn-ghost" href="/clip">Start a projection</a>
+    </header>
+
+    <div class="gd-shell">
+
+      <section class="gd-hero">
+        <h1>What you can find out about a collection</h1>
+        <p>
+          This program does one thing at its base: it asks a pre-trained model to look at each of your images and
+          describe it as a long list of numbers. Images that the model finds similar get similar numbers. Everything
+          else here &mdash; every map, every group, every ranking &mdash; is a different way of questioning that one
+          list.
+        </p>
+        <p>
+          The page below explains, in plain terms, what each function actually tells you, when it is the right one to
+          reach for, and what it cannot do. No feature here is magic, and several of them are easy to misread; where
+          that is true, it says so.
+        </p>
+        <nav class="gd-toc">
+          <a href="#map">The map</a>
+          <a href="#groups">Groups and order</a>
+          <a href="#find">Finding things</a>
+          <a href="#graph">The graph</a>
+          <a href="#words">Questions in words</a>
+          <a href="#honest">What none of it can do</a>
+        </nav>
+      </section>
+
+      <!-- ------------------------------------------------------------ map -->
+      <section class="gd-section" id="map">
+        <h2>The map</h2>
+        <p class="gd-lead">
+          The model describes each image with hundreds of numbers. A screen has two dimensions. Everything in this
+          section is a different way of squashing the first into the second &mdash; and each way loses something
+          different.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>Scatter plot (UMAP / t-SNE)</h3>
+            <p class="gd-where">Embedding Projection</p>
+            <p class="gd-q">"Which of my images does the model consider alike?"</p>
+            <p>
+              Each dot is one image, placed so that images the model finds similar land near each other. Dense knots
+              are groups of pictures the model sees as variations on one thing; empty space between knots means it
+              sees a real difference.
+            </p>
+            <p>
+              This is the view to start from. Switch on thumbnails and you can read the groups directly: you will
+              usually recognise what a cluster has in common within a few seconds of looking at it.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> The two axes mean nothing. Left-to-right is not a quantity, and neither
+              is up-and-down &mdash; they are just the directions the algorithm happened to flatten along. Distances
+              between nearby dots are fairly trustworthy; distances between far-apart ones are not.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Named axes</h3>
+            <p class="gd-where">Embedding Projection &middot; optional</p>
+            <p class="gd-q">"Where does each image sit between <em>this</em> idea and <em>that</em> one?"</p>
+            <p>
+              Instead of letting the algorithm choose the axes, you write them. Type "a portrait of a person" at one
+              end and "a landscape" at the other, do the same for the vertical axis, and the collection is laid out on
+              two scales you named and can read.
+            </p>
+            <p>
+              This is the answer to the complaint above. Here a position <em>does</em> mean something: an image
+              halfway up really is halfway between the two ideas you gave, as far as the model is concerned.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> If your two axes describe similar things, everything collapses onto a
+              diagonal and the plot tells you nothing. The app measures this and warns you when it happens.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Grid mosaic</h3>
+            <p class="gd-where">Embedding Projection &middot; view mode</p>
+            <p class="gd-q">"Let me actually see every image, without any of them hiding each other."</p>
+            <p>
+              The scatter plot's worst habit is piling images on top of one another exactly where they are most
+              interesting. The mosaic gives every image its own equal cell in a grid, keeping similar images near
+              each other as far as a grid allows.
+            </p>
+            <p>
+              Use it when you want to browse rather than measure &mdash; it is the best view for spotting something by
+              eye across the whole collection.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> The grid has to distort distances to fit everything into equal cells.
+              Neighbours are still meaningful; the exact gaps are not.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Colour by a concept</h3>
+            <p class="gd-where">Embedding Projection &middot; optional</p>
+            <p class="gd-q">"Where in my collection does <em>this idea</em> occur?"</p>
+            <p>
+              Type a phrase &mdash; "a ruin", "night", "strong contrast" &mdash; and every image is shaded by how much
+              of it the model sees. Cold colours are the least, warm the most.
+            </p>
+            <p>
+              This is a different question from search. Search gives you the top thirty; this shows the idea's
+              <em>distribution</em>. You may discover it is spread evenly across two clusters, or concentrated in one
+              corner of a single group &mdash; which search would never have told you.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> The colours are relative to your collection, not absolute. The reddest
+              image is the most X <em>here</em>, which in a collection with no X at all still means very little.
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- --------------------------------------------------------- groups -->
+      <section class="gd-section" id="groups">
+        <h2>Groups and order</h2>
+        <p class="gd-lead">
+          Four analyses that run over the stored numbers and answer with a list rather than a picture.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>Clusters</h3>
+            <p class="gd-where">Embedding Projection</p>
+            <p class="gd-q">"Split my collection into groups."</p>
+            <p>
+              The collection is divided into a chosen number of groups, each with a centre. For each group the app can
+              show you its most typical image &mdash; the one closest to that centre &mdash; and how tight the group
+              is.
+            </p>
+            <p>
+              A tight group is a real theme. A loose one is usually a leftover bin: the images that did not belong
+              anywhere else got put together.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> This method always returns exactly the number of groups you asked for,
+              whether or not the collection has any. The cohesion figure is what tells you if a group is real.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Duplicates and near-duplicates</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis</p>
+            <p class="gd-q">"Do I have the same picture twice?"</p>
+            <p>
+              Finds images the model considers all but identical, and groups them. It catches what a file comparison
+              misses: the same work rescanned, recropped, recoloured, or saved at a different size.
+            </p>
+            <p>
+              Groups are listed most-certain first, and a group assembled through a chain (A resembles B, B resembles
+              C, but A and C were never directly compared) is flagged as such, because those are the ones worth
+              checking by eye.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> "Near-identical to the model" can mean two genuinely different works
+              in the same series. Always look before you delete anything.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Outliers</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis</p>
+            <p class="gd-q">"What in here doesn't belong with the rest?"</p>
+            <p>
+              Every image is ranked by how far it is from its own nearest neighbours. The top of that ranking is the
+              images with the least company.
+            </p>
+            <p>
+              In practice this surfaces two useful things at once: genuinely unusual works, and mistakes &mdash; the
+              scan that went wrong, the file that is not really part of the collection, the blank page.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> Being an outlier says nothing about quality or interest. It says only
+              that nothing else here is much like it.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Compare two images</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis</p>
+            <p class="gd-q">"How related are these two, really?"</p>
+            <p>
+              A bare similarity number is close to meaningless &mdash; whether 0.72 is high depends entirely on the
+              model and the collection. So the comparison adds context: where each image ranks in the other's list of
+              neighbours, and where the pair sits among all pairs in the collection.
+            </p>
+            <p>
+              The revealing case is a one-sided pair: A considers B one of its closest relatives while B barely
+              notices A. That usually means A is unusual and B is a crowd-pleaser.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ----------------------------------------------------------- find -->
+      <section class="gd-section" id="find">
+        <h2>Finding things</h2>
+        <p class="gd-lead">
+          The models in the CLIP family were trained on images together with their captions, so they place a picture
+          and a description of it in the same place. That is what makes the next two possible.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>Search by description</h3>
+            <p class="gd-where">Embedding Projection</p>
+            <p class="gd-q">"Show me the images that look like this description."</p>
+            <p>
+              Type what you are looking for in ordinary language &mdash; "a stormy sea at night", "two people arguing"
+              &mdash; and the collection is ranked against it. Nothing needs to be tagged or labelled beforehand.
+            </p>
+            <p>
+              It works best with plain descriptive phrases. Proper names, dates, artists and technical art-historical
+              terms usually fail, because the captions it learned from rarely contained them.
+            </p>
+          </article>
+
+          <article class="gd-card">
+            <h3>Similar images</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis</p>
+            <p class="gd-q">"More like this one."</p>
+            <p>
+              Pick any image and get its closest relatives, ranked. This is measured in the full space of numbers, not
+              on the flattened map, so it is more trustworthy than judging by what looks near it on the plot.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- graph -->
+      <section class="gd-section" id="graph">
+        <h2>The graph</h2>
+        <p class="gd-lead">
+          A separate view that draws a line between each image and the handful it is genuinely closest to. Because the
+          links are computed in the full space, the graph knows things the flattened map cannot show.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>Communities</h3>
+            <p class="gd-where">Neighbor graph &middot; Structure</p>
+            <p class="gd-q">"How is the collection organised, according to the links themselves?"</p>
+            <p>
+              The algorithm looks for sets of images that link to each other far more than they link outward, and
+              keeps refining until no single move improves the division. Click a community and the graph shows that
+              group alone.
+            </p>
+            <p>
+              The value is that this is a <em>second, independent opinion</em>. It is reached without the 2D map and
+              without the cluster count you chose. When it agrees with the clusters, the grouping is solid; when it
+              disagrees, one of the two has distorted something and it is worth finding out which.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> The <em>modularity</em> figure says how clear-cut the division is.
+              Below about 0.3 the collection is fairly uniform and the communities are weak; above 0.5 the groups are
+              strongly distinct.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Bridges and load-bearing images</h3>
+            <p class="gd-where">Neighbor graph &middot; Structure</p>
+            <p class="gd-q">"What is holding two groups together?"</p>
+            <p>
+              A bridge is a single link that, if removed, would split the graph in two. A load-bearing image is one
+              whose removal would do the same. Both are drawn in amber.
+            </p>
+            <p>
+              These are often the most interesting images in a collection: the work that belongs to two worlds at
+              once, and is the only thing connecting them.
+            </p>
+          </article>
+
+          <article class="gd-card">
+            <h3>Links that expose the map</h3>
+            <p class="gd-where">Neighbor graph &middot; edge colour</p>
+            <p class="gd-q">"Where is the flat map lying to me?"</p>
+            <p>
+              Every link carries two numbers that ought to agree: how long it is on screen, and how similar the two
+              images actually are. Colouring the links by the disagreement between them turns the graph into a check
+              on the projection.
+            </p>
+            <p>
+              The warm links are strongly related images that the map pushed far apart &mdash; precisely the places
+              where trusting the scatter plot would mislead you.
+            </p>
+          </article>
+
+          <article class="gd-card">
+            <h3>Hubs and isolated images</h3>
+            <p class="gd-where">Neighbor graph</p>
+            <p class="gd-q">"Which images is everything else clustered around?"</p>
+            <p>
+              Colouring nodes by how many links they have shows the collection's centres of gravity. A hub is an
+              image many others consider one of their closest; an isolated node is one nothing reaches.
+            </p>
+            <p>
+              The number of neighbours per image (k) is the control that matters most here. Low values break the
+              collection into small fragments; high values merge everything into one mass. Raise it until the
+              structure you care about appears.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- words -->
+      <section class="gd-section" id="words">
+        <h2>Questions in words</h2>
+        <p class="gd-lead">
+          Three functions that answer with language or with a comparison rather than with a picture of the collection.
+          They live in their own view because they are a different kind of question.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>What separates two groups</h3>
+            <p class="gd-where">Lenses</p>
+            <p class="gd-q">"I can see these two groups differ. In what way?"</p>
+            <p>
+              Take two sets of images &mdash; two clusters, or the most and least "X" in the collection &mdash; and the
+              app reports the difference between them as a list of words: these terms lean towards A, these towards B.
+            </p>
+            <p>
+              Anything the two groups have in common cancels out, which is what makes the answer useful: it names what
+              <em>separates</em> them, not what they are.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> Two things. The answer can only use words from the vocabulary list, and
+              the model will always pick the closest term offered even when none of them fits &mdash; so edit that
+              list to suit your collection. And check the <em>centroid similarity</em> reported with the answer: if
+              the two groups nearly coincide, a long list of distinguishing words means very little.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Concept arithmetic</h3>
+            <p class="gd-where">Lenses</p>
+            <p class="gd-q">"Images like this one, but more X and less Y."</p>
+            <p>
+              Start from an image, add an idea, subtract another, and the collection is ranked against the result. The
+              <em>idea strength</em> slider decides the balance: at zero you simply get the starting image's
+              neighbours, and as you raise it the words take over.
+            </p>
+            <p>
+              Scores are shown in standard deviations rather than as a similarity, because what is being combined is
+              how far above the collection's average each image sits on each term &mdash; the only scale on which an
+              image and a phrase can fairly be added together.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> This is an instrument for thinking, not a reliable operation. The space
+              encodes web captions, not a grammar. It works often enough to be illuminating and fails often enough
+              that you should always look at what comes back.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Where two models disagree</h3>
+            <p class="gd-where">Lenses</p>
+            <p class="gd-q">"Which of my images have a gap between their subject and their style?"</p>
+            <p>
+              Run the same folder twice, once with a CLIP-family model and once with DINOv2. The first groups images
+              by what they <em>show</em>; the second by how they <em>look</em>. Then compare the two.
+            </p>
+            <p>
+              Neither is wrong &mdash; they answer different questions &mdash; and the images they place most
+              differently are the interesting residue: a landscape painted like a portrait, a sacred scene handled as
+              everyday genre. <strong>Neither model can point at these on its own</strong>, because each sees only its
+              own answer. This information exists nowhere except in the comparison.
+            </p>
+            <div class="gd-limit">
+              <strong>Read with care.</strong> The comparison is made on neighbourhoods, not positions. Two models'
+              coordinates cannot be compared at all &mdash; they are unrelated &mdash; but "which images does this
+              model think are closest to this one" means the same thing in both.
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- --------------------------------------------------------- honest -->
+      <section class="gd-section" id="honest">
+        <h2>What none of it can do</h2>
+
+        <div class="gd-note">
+          <h3>The limits worth knowing before you trust any of this</h3>
+          <p>
+            Every function on this page rests on the same foundation, and inherits the same limits.
+          </p>
+          <ul>
+            <li>
+              <strong>The model learned from pictures with captions found on the web.</strong> It separates "portrait"
+              from "landscape" reliably. It is close to blind to the distinctions a specialist makes &mdash; period,
+              hand, workshop, state of an engraving &mdash; because those words almost never appeared next to a picture
+              in what it read.
+            </li>
+            <li>
+              <strong>"Similar" means similar to a particular model trained for a particular purpose.</strong> It
+              agrees with human judgement often, but not always, and there is no signal that tells you which of the
+              two you are looking at. When an answer surprises you, the model being wrong is as likely as a discovery.
+            </li>
+            <li>
+              <strong>The biases in the training material pass through intact.</strong> What the model finds
+              noteworthy, typical or related reflects what was common on the web, not what is true of your collection
+              or of the world.
+            </li>
+            <li>
+              <strong>Nothing here is a measurement.</strong> These are readings from one instrument with a known
+              character. They are most valuable when they make you look at an image you would not otherwise have
+              looked at &mdash; and least valuable when quoted as a number.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</body>
+</html>

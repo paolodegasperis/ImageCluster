@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ImageCluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="redesign start-page" data-density="cozy">
+  <main class="start" data-screen-label="01 Start Menu">
+    <div class="start-inner">
+      <section class="start-hero">
+        <div>
+          <div class="eyebrow">IMAGECLUSTER <span id="dashboardVersion">--</span></div>
+          <h1>Visualize image collections.</h1>
+          <p>Embed, project and search local image folders. Pick a workflow to get started: the guided one handles everything from scan to interactive plot.</p>
+        </div>
+        <div class="hero-right">
+          <a class="btn btn-ghost btn-sm" href="/models#guide">What's new</a>
+          <div class="chip chip-success dot" id="dashboardReadyChip">Checking dependencies</div>
+        </div>
+      </section>
+
+      <section class="start-grid">
+        <article class="directory-card">
+          <div class="row">
+            <div>
+              <div class="eyebrow">Image directory</div>
+              <div class="directory-actions">
+                <span class="path-pill">~/ImageCluster/<b>img</b></span>
+                <button class="btn btn-sm" id="dashboardScanImg">Scan img folder</button>
+              </div>
+            </div>
+            <div class="chip chip-warn dot" id="dashboardScanChip">Not scanned yet</div>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="v mono" id="dashboardStatImages">--<small>images</small></div><div class="k">Found</div></div>
+            <div class="stat"><div class="v mono" id="dashboardStatSize">img</div><div class="k">Folder</div></div>
+            <div class="stat"><div class="v mono" id="dashboardStatSubfolders">--</div><div class="k">Subfolders</div></div>
+          </div>
+          <div>
+            <div class="eyebrow formats-title">Supported formats</div>
+            <div class="formats">
+              <span class="chip mono">JPG</span>
+              <span class="chip mono">PNG</span>
+              <span class="chip mono">WebP</span>
+              <span class="chip mono">BMP</span>
+              <span class="chip mono">TIFF</span>
+            </div>
+          </div>
+          <div id="dashboardImageDirStatus" class="small dashboard-hidden-status">Not scanned yet.</div>
+        </article>
+
+        <article class="sys-card" id="statusPanel">
+          <div class="flex between align-c sys-head">
+            <h3>System</h3>
+            <a class="btn btn-xs btn-ghost" href="/api/status" target="_blank" rel="noopener">Diagnostics</a>
+          </div>
+          <p id="statusText" class="small">Checking dependencies...</p>
+          <div class="deps" id="deps"></div>
+        </article>
+      </section>
+
+      <section class="start-section-title">
+        <h2>Choose a workflow</h2>
+        <span class="muted">Start a new projection, or configure models and settings.</span>
+      </section>
+
+      <section class="workflows workflows-5">
+        <a class="wf primary" href="/clip">
+          <span class="wf-badge">Recommended</span>
+          <h3>Embedding guided workflow</h3>
+          <p>The fast path. Pick a model, generate a UMAP/t-SNE projection, then explore and search the collection interactively.</p>
+          <div class="wf-models">
+            <span class="chip">OpenCLIP</span>
+            <span class="chip">SigLIP 2</span>
+            <span class="chip">DINOv2</span>
+            <span class="chip">MobileCLIP</span>
+            <span class="chip">Nomic Vision</span>
+            <span class="chip">ImageBind</span>
+            <span class="chip">+18 more</span>
+          </div>
+          <div class="wf-foot">
+            <span>4-step guided flow · semantic search · grid mosaic</span>
+            <span class="open">Open</span>
+          </div>
+        </a>
+
+        <a class="wf" href="/graph">
+          <span class="wf-badge">Analysis</span>
+          <h3>Nearest-neighbor graph</h3>
+          <p>Open a saved projection as a graph: every image is linked to its closest neighbours in the full embedding
+          space, where the 2D projection's distortions do not apply. Useful for spotting hubs, outliers and groups the
+          scatter plot flattens together.</p>
+          <div class="wf-foot">
+            <span>Needs one saved projection</span>
+            <span class="open">Open</span>
+          </div>
+        </a>
+
+        <a class="wf" href="/lens">
+          <span class="wf-badge">Analysis</span>
+          <h3>Lenses</h3>
+          <p>Three questions a map cannot answer: what separates two groups of images stated in words, concept
+          arithmetic over the embedding space, and the works two different models place differently &mdash; where
+          subject and form part company.</p>
+          <div class="wf-foot">
+            <span>Needs one saved projection</span>
+            <span class="open">Open</span>
+          </div>
+        </a>
+
+        <a class="wf" href="/guide">
+          <span class="wf-badge">Start here</span>
+          <h3>What you can find out</h3>
+          <p>Every function explained in plain language: the question it answers, when to reach for it, and how it can
+          mislead you. Worth reading once before trusting any of the numbers.</p>
+          <div class="wf-foot">
+            <span>No projection needed</span>
+            <span class="open">Read</span>
+          </div>
+        </a>
+
+        <a class="wf" href="/models">
+          <span class="wf-badge">Configuration</span>
+          <h3>Info and settings</h3>
+          <p>Review the model guide, configure the local Hugging Face token, and read the English guide and glossary.</p>
+          <div class="wf-foot">
+            <span>Guide · Models · Glossary</span>
+            <span class="open">Open</span>
+          </div>
+        </a>
+      </section>
+
+      <details class="setup-advice" id="setupAdviceBox" hidden>
+        <summary>
+          <span>Setup &amp; installation help</span>
+          <span class="muted">Shown because some dependencies are missing</span>
+        </summary>
+        <pre id="installAdvice" class="install-advice"></pre>
+      </details>
+
+      <footer class="start-footer">
+        <div>Last session: <span class="mono">openclip-vit-b-32 · UMAP · local images</span></div>
+        <div>Local-only · no telemetry</div>
+      </footer>
+    </div>
+  </main>
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

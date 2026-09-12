@@ -1,0 +1,28 @@
+[project]
+name = "imagecluster"
+description = "Embed, project, cluster and search local image collections."
+requires-python = ">=3.10"
+dynamic = ["version"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning:umap.*",
+    "ignore::DeprecationWarning:numba.*",
+]
+
+[tool.ruff]
+line-length = 140
+target-version = "py310"
+exclude = [".venv", "output", "img", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",   # long lines are checked by the formatter's line-length instead
+    "B008",   # FastAPI dependencies are declared in defaults by design
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]

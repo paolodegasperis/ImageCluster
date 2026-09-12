@@ -1,0 +1,47 @@
+# Line endings.
+#
+# Without this file Git normalises on checkout according to whatever each
+# machine's core.autocrlf happens to be. That is not a cosmetic matter here: the
+# macOS launchers are executed by /bin/bash, and a CRLF line ending turns the
+# shebang into "/bin/bash\r", which fails with "bad interpreter". Windows .bat
+# files have the opposite requirement. So both are pinned explicitly.
+
+# Normalise every text file to LF inside the repository, and check it out as LF.
+* text=auto eol=lf
+
+# Unix shell scripts: LF, always. These are launched directly by the user.
+*.sh        text eol=lf
+*.command   text eol=lf
+
+# Windows scripts: CRLF, always. cmd.exe mishandles LF in multi-line constructs.
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+# Source and data: LF.
+*.py        text eol=lf
+*.js        text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.toml      text eol=lf
+*.txt       text eol=lf
+*.tsv       text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+# Binary: never touched, never diffed as text.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.ico       binary
+*.icns      binary
+*.npy       binary
+*.pdf       binary
+*.zip       binary
+*.ttf       binary
+*.woff      binary
+*.woff2     binary

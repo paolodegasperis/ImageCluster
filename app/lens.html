@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lenses - ImageCluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="redesign lens-page" data-density="cozy">
+  <main class="lens-shell" data-screen-label="04 Lenses">
+    <header class="topbar">
+      <div class="brand-mark">P</div>
+      <strong>Projector</strong>
+      <a href="/">Dashboard</a>
+      <span>/</span>
+      <a href="/clip">Embedding Projection</a>
+      <span>/</span>
+      <strong>Lenses</strong>
+      <span class="topbar-spacer"></span>
+      <a class="btn btn-sm btn-ghost" href="/guide"
+         title="Plain-language explanation of every feature in the app">Guide</a>
+      <button class="btn btn-sm btn-ghost" type="button" data-open-help
+              title="What these three lenses are for and how to read them">How to read this</button>
+      <span class="chip chip-warn dot" id="lensStatusChip">Choose a projection</span>
+    </header>
+
+    <aside class="lens-rail">
+      <div class="lr-scroll">
+        <div class="section-title-rail"><span>Source</span></div>
+        <section class="step open active">
+          <div class="step-body">
+            <p class="help">
+              Three questions the map itself cannot answer. Each reads a projection that already exists, so nothing
+              is re-encoded.
+            </p>
+            <label class="label" for="lensProjection">Projection</label>
+            <select class="select mono" id="lensProjection"
+                    title="Which saved projection to question. The first two lenses use its model's text side, so they need a CLIP-family projection.">
+              <option value="">Loading...</option>
+            </select>
+            <div class="status-banner idle" id="lensSourceInfo">Choose a saved projection.</div>
+          </div>
+        </section>
+
+        <div class="section-title-rail"><span>Lens</span></div>
+        <section class="step open active">
+          <div class="step-body">
+            <div class="lens-picker" role="tablist">
+              <button class="lens-choice active" type="button" data-lens="distinguish"
+                      title="Take two groups of images and read the difference between them back out as words">
+                <strong>What separates two groups</strong>
+                <span>in words</span>
+              </button>
+              <button class="lens-choice" type="button" data-lens="arithmetic"
+                      title="Start from an image, subtract an idea, add another, and see what the collection offers">
+                <strong>Concept arithmetic</strong>
+                <span>image &minus; idea + idea</span>
+              </button>
+              <button class="lens-choice" type="button" data-lens="disagreement"
+                      title="Compare two projections of the same folder and find the images the two models place differently">
+                <strong>Where two models disagree</strong>
+                <span>subject vs form</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </aside>
+
+    <section class="lens-center">
+
+      <!-- ---------------------------------------------------- distinguish -->
+      <section class="lens-pane active" data-lens-pane="distinguish">
+        <header class="lens-head">
+          <h2>What separates two groups</h2>
+          <p>
+            Both groups sit somewhere in the model's space. The direction from one to the other is itself a
+            point in that space, and because images and words share it, that direction can be read as language.
+            Whatever the two groups have in common cancels in the subtraction &mdash; which is why the answer names
+            what <em>separates</em> them rather than what they are.
+          </p>
+        </header>
+
+        <div class="lens-controls">
+          <div class="dc-field"
+               title="Clusters contrasts two K-Means groups, and needs a projection that has them. A concept scores the whole collection against a phrase and contrasts the two ends, which works on any projection and often asks a sharper question.">
+            <span class="lbl">Define groups by</span>
+            <select class="select" id="groupMode">
+              <option value="concept">A concept</option>
+              <option value="cluster">Clusters</option>
+            </select>
+          </div>
+
+          <div class="group-mode" data-group-mode="concept">
+            <div class="dc-field" title="The collection is scored against this phrase; the highest become group A and the lowest group B.">
+              <span class="lbl">Concept</span>
+              <input class="input" id="groupConcept" type="text" placeholder="a landscape" />
+            </div>
+            <div class="dc-field" title="How many images at each end. Larger groups give a steadier answer; smaller ones a sharper contrast.">
+              <span class="lbl">Group size</span>
+              <input class="input mono" id="groupSize" type="number" min="2" max="500" value="40" />
+            </div>
+          </div>
+
+          <div class="group-mode" data-group-mode="cluster" hidden>
+            <div class="dc-field" title="Images on the A side.">
+              <span class="lbl">Group A</span>
+              <select class="select" id="distinguishA"></select>
+            </div>
+            <div class="dc-field" title="Images on the B side.">
+              <span class="lbl">Group B</span>
+              <select class="select" id="distinguishB"></select>
+            </div>
+          </div>
+
+          <div class="dc-field" title="How many terms to report at each end.">
+            <span class="lbl">Terms</span>
+            <input class="input mono" id="distinguishTopK" type="number" min="1" max="50" value="10" />
+          </div>
+          <button class="btn btn-sm" type="button" id="distinguishRunBtn"
+                  title="Score the vocabulary along the direction between the two groups">Read the difference</button>
+          <div class="dc-spacer"></div>
+          <button class="btn btn-sm btn-ghost" type="button" data-toggle-vocabulary
+                  title="The terms the answer is drawn from. The model can only answer with words you offer it.">Vocabulary</button>
+        </div>
+
+        <div class="vocabulary-box" id="vocabularyBox" hidden>
+          <p class="help">
+            The answer can only use terms from this list &mdash; the model will always pick the closest one offered,
+            even when none is right. Edit it to match your collection: one term per line.
+          </p>
+          <textarea id="vocabularyText" rows="8" spellcheck="false"
+                    title="One term per line. Short descriptive phrases work better than single words."></textarea>
+          <div class="vb-actions">
+            <button class="btn btn-sm btn-ghost" type="button" id="vocabularyResetBtn">Restore the default list</button>
+            <span class="small muted" id="vocabularyCount"></span>
+          </div>
+        </div>
+
+        <div class="status-banner idle" id="distinguishStatus">Pick two groups.</div>
+        <div id="distinguishResult"></div>
+      </section>
+
+      <!-- ---------------------------------------------------- arithmetic -->
+      <section class="lens-pane" data-lens-pane="arithmetic">
+        <header class="lens-head">
+          <h2>Concept arithmetic</h2>
+          <p>
+            Read it as <em>&ldquo;images like this one, but more X and less Y&rdquo;</em>. Each term &mdash; the starting
+            image, every idea added, every idea subtracted &mdash; is scored against the whole collection separately,
+            and the scores are put on a common scale before being combined. It is rarely clean &mdash; the space was
+            not built for algebra &mdash; but it is the most direct demonstration of what an embedding space actually
+            is, and it occasionally surfaces a relationship nothing else would.
+          </p>
+        </header>
+
+        <div class="lens-controls">
+          <div class="dc-field" title="The image to start from. Leave empty to start from a phrase instead.">
+            <span class="lbl">Start from</span>
+            <select class="select" id="arithmeticBase"></select>
+          </div>
+          <div class="dc-field" title="Ideas to add, separated by ;">
+            <span class="lbl">Add</span>
+            <input class="input" id="arithmeticAdd" type="text" placeholder="night" />
+          </div>
+          <div class="dc-field" title="Ideas to subtract, separated by ;">
+            <span class="lbl">Subtract</span>
+            <input class="input" id="arithmeticSub" type="text" placeholder="daylight" />
+          </div>
+          <div class="dc-field"
+               title="How hard the ideas pull against the starting image. At the low end you get the image's own neighbours; at the high end the ideas take over and the starting image barely matters.">
+            <span class="lbl">Idea strength</span>
+            <input class="input mono" id="arithmeticStrength" type="range" min="0" max="3" step="0.25" value="1" />
+            <span class="small mono" id="arithmeticStrengthOut">1.00&times;</span>
+          </div>
+          <button class="btn btn-sm" type="button" id="arithmeticRunBtn"
+                  title="Score each term against the collection, standardise, and combine">Compute</button>
+        </div>
+
+        <div class="status-banner idle" id="arithmeticStatus">Pick a starting image and at least one term.</div>
+        <div id="arithmeticResult"></div>
+      </section>
+
+      <!-- -------------------------------------------------- disagreement -->
+      <section class="lens-pane" data-lens-pane="disagreement">
+        <header class="lens-head">
+          <h2>Where two models disagree</h2>
+          <p>
+            CLIP-family models group by what a picture <em>shows</em>; DINOv2 and the visual-feature provider group
+            by how it <em>looks</em>. Neither is wrong &mdash; they answer different questions. The residue is the
+            interesting part: the works the two place differently have a gap between their subject and their form.
+            A landscape painted like a portrait. A sacred scene handled as genre.
+          </p>
+          <p class="help">
+            The comparison is made on neighbourhoods, not positions: two embedding spaces share no frame, so
+            coordinates cannot be compared, but "which images does this model consider closest to this one" means
+            the same thing in both.
+          </p>
+        </header>
+
+        <div class="lens-controls">
+          <div class="dc-field" title="The first projection. Both must cover the same folder.">
+            <span class="lbl">Model A</span>
+            <select class="select mono" id="disagreementA"></select>
+          </div>
+          <div class="dc-field" title="The second projection, generated from the same images with a different model.">
+            <span class="lbl">Model B</span>
+            <select class="select mono" id="disagreementB"></select>
+          </div>
+          <div class="dc-field" title="How many neighbours to compare. Too few is noisy; too many and everything overlaps.">
+            <span class="lbl">Neighbours</span>
+            <input class="input mono" id="disagreementK" type="number" min="2" max="50" value="15" />
+          </div>
+          <button class="btn btn-sm" type="button" id="disagreementRunBtn"
+                  title="Compare the two neighbourhoods of every image">Compare</button>
+        </div>
+
+        <div class="status-banner idle" id="disagreementStatus">Pick two projections of the same folder.</div>
+        <div id="disagreementResult"></div>
+      </section>
+
+    </section>
+
+    <div class="help-modal" id="lensHelpModal" hidden>
+      <div class="help-backdrop" data-close-help></div>
+      <article class="help-panel" role="dialog" aria-modal="true" aria-labelledby="lensHelpTitle">
+        <header class="help-head">
+          <h2 id="lensHelpTitle">What these lenses are for</h2>
+          <button class="btn btn-icon btn-ghost btn-sm" type="button" data-close-help aria-label="Close">&times;</button>
+        </header>
+        <div class="help-body">
+          <section>
+            <h3>Why a separate view</h3>
+            <p>
+              The projection, the mosaic and the graph all answer with a <em>picture of the collection</em>. These
+              three answer with something else &mdash; a list of words, a derived query, a ranking of disagreements &mdash;
+              so they live apart rather than crowding a workspace built around a plot.
+            </p>
+            <p>
+              All three read a projection that already exists. The first two additionally use the text half of the
+              model's space, so they need a CLIP-family projection and load the model on first use; the third works
+              with any two projections of the same folder.
+            </p>
+          </section>
+
+          <section>
+            <h3>What separates two groups</h3>
+            <p>
+              Each group has a centre: the average of its images in the model's space. The direction from B's centre
+              to A's is a point in that same space, and since words live there too, the vocabulary can be scored
+              along it. Terms that lean towards A describe what A has and B does not.
+            </p>
+            <p>
+              Two cautions. The <strong>vocabulary constrains the answer</strong>: the model returns the best terms
+              <em>you offered</em>, even when none fits, so edit the list to suit your collection. And the
+              <strong>centroid similarity</strong> reported with the result says how far apart the groups actually
+              are &mdash; a long list of distinguishing words means little when the two nearly coincide.
+            </p>
+          </section>
+
+          <section>
+            <h3>Concept arithmetic</h3>
+            <p>
+              Start from an image, subtract an idea, add another, and the collection is ranked against the result.
+              Treat it as an instrument for thinking rather than a reliable operation: the space encodes captions
+              from the web, not a grammar, so the arithmetic works often enough to be illuminating and fails often
+              enough that you should look at what comes back.
+            </p>
+          </section>
+
+          <section>
+            <h3>Where two models disagree</h3>
+            <p>
+              Generate the same folder twice, once with a CLIP-family model and once with DINOv2 or Visual Features,
+              then compare. For every image the two neighbourhoods are intersected: an overlap of 1 means both models
+              consider the same works its closest relatives, 0 means they share none at all.
+            </p>
+            <p>
+              The images at the bottom of that ranking are the ones worth looking at. They are where subject and
+              form part company &mdash; and neither model can point at them alone, because each sees only its own
+              answer. The information exists only in the comparison.
+            </p>
+          </section>
+
+          <section>
+            <h3>What none of this can do</h3>
+            <ul class="help-list">
+              <li>CLIP learned from web captions. It separates "portrait" from "landscape" reliably; it is blind to
+              "workshop of" versus "manner of", and to most distinctions a connoisseur would make.</li>
+              <li>Cosine similarity is closeness in a space trained for a particular objective. It agrees with human
+              judgement often, not always, and there is no signal for when it does not.</li>
+              <li>The biases of the training data pass through intact into every grouping here. The map is a model's,
+              not the world's.</li>
+            </ul>
+          </section>
+        </div>
+      </article>
+    </div>
+  </main>
+  <script src="/static/js/lens.js"></script>
+</body>
+</html>
