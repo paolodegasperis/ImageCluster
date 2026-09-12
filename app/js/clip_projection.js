@@ -1441,10 +1441,7 @@ function findHover(evt) {
 }
 
 function exportPng() {
-  const link = document.createElement('a');
-  link.download = 'imagecluster-clip-projection.png';
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+  saveCanvasPng(canvas, exportFilename('projection', '', 'png'));
 }
 
 function updateSearchCapability() {
@@ -1775,11 +1772,7 @@ function exportSearchTsv() {
     ].map(tsvCell).join('\t'));
   }
   const blob = new Blob([rows.join('\n')], { type: 'text/tab-separated-values' });
-  const link = document.createElement('a');
-  link.download = 'imagecluster-search-results.tsv';
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  URL.revokeObjectURL(link.href);
+  saveBlob(blob, exportFilename('search', state.lastSearchPayload.query, 'tsv'));
 }
 
 function tsvCell(value) {

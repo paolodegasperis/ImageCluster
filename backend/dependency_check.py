@@ -42,6 +42,7 @@ DEPENDENCIES = [
     DependencyReport("sentencepiece", "sentencepiece", required=False, note="Needed for text search with SigLIP / SentencePiece-tokenizer models."),
     DependencyReport("protobuf", "google.protobuf", required=False, note="Needed alongside sentencepiece for SigLIP text search."),
     DependencyReport("scipy", "scipy", required=False, note="Needed for the optimal grid-mosaic assignment; a greedy fallback is used without it."),
+    DependencyReport("fpdf2", "fpdf", required=False, note="Needed to export results as PDF. Everything else works without it; the PDF buttons explain that they are unavailable."),
 ]
 
 OPTIONAL_DEPENDENCIES = [

@@ -60,6 +60,30 @@ class ExportClustersRequest(BaseModel):
     export_name: str | None = Field(default=None)
 
 
+class SheetItemModel(BaseModel):
+    """One image on an exported sheet, as the browser describes it."""
+
+    relative_path: str
+    caption: str = Field(default="", max_length=200)
+    detail: str = Field(default="", max_length=200)
+
+
+class ImageSheetRequest(BaseModel):
+    """A contact sheet of whatever result the user is looking at.
+
+    The items come from the browser because the sheet should show exactly what
+    was on screen. Every path in them is re-validated against ``img/`` before
+    anything is read: this list is user input, not a trusted query.
+    """
+
+    projection_path: str
+    title: str = Field(default="Export", max_length=200)
+    subtitle: str = Field(default="", max_length=300)
+    meta_lines: list[str] = Field(default_factory=list, max_length=8)
+    items: list[SheetItemModel] = Field(min_length=1, max_length=600)
+    filename: str | None = Field(default=None, max_length=120)
+
+
 class MosaicRequest(BaseModel):
     """Grid-mosaic layout of an existing projection."""
 

@@ -641,6 +641,60 @@ function showInspectorTab(name) {
   });
 }
 
+// Save a community as a contact sheet.
+//
+// The images are sent by path and rebuilt server-side at full resolution: the
+// browser can only reach them through the thumbnail endpoint, which stops at
+// 512px, and this document exists to be looked at closely.
+async function exportCommunityPdf(community, button) {
+  const nodes = nodesOfCommunity(community);
+  if (!nodes.length) return;
+
+  const label = `Community ${community + 1}`;
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = '...';
+  try {
+    const graph = state.graph || {};
+    const report = await downloadFromServer('/api/exports/sheet', {
+      projection_path: state.projectionPath,
+      title: label,
+      subtitle: `${nodes.length} image${nodes.length === 1 ? '' : 's'} of ${state.nodes.length}`
+        + (hasNumber(graph.modularity) ? ` · graph modularity ${graph.modularity.toFixed(3)}` : ''),
+      meta_lines: [
+        `Neighbor graph · k=${graph.k ?? state.k} · ${state.edges.length} edges`,
+        `${graph.model_label || ''} · ${state.projectionPath.split('/').pop()}`.replace(/^ · /, ''),
+      ].filter(line => line.trim()),
+      items: nodes.map(node => ({
+        relative_path: node.relative_path,
+        caption: node.filename,
+        // What the graph knows about this image, so the sheet can be read back
+        // against the view it came from.
+        detail: [
+          `${node.degree} link${node.degree === 1 ? '' : 's'}`,
+          hasNumber(node.cluster) ? `cluster ${node.cluster}` : '',
+          node.articulation ? 'load-bearing' : '',
+        ].filter(Boolean).join('  ·  '),
+      })),
+      filename: exportFilename('community', label, 'pdf'),
+    });
+    const notes = [];
+    if (report.skipped) notes.push(`${report.skipped} missing from img/`);
+    if (report.undersized) notes.push(`${report.undersized} smaller than 500px, shown at their own size`);
+    setText('graphMessage', `${label}: ${report.included} image${report.included === 1 ? '' : 's'} exported`
+      + (notes.length ? ` · ${notes.join(' · ')}` : '.'));
+    $('graphMessage').className = `status-banner ${notes.length ? 'warn' : 'ok'}`;
+  } catch (err) {
+    // A failure has to say so: a download that silently does nothing reads as a
+    // broken button.
+    setText('graphMessage', `PDF export failed: ${err.message}`);
+    $('graphMessage').className = 'status-banner warn';
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
 function nodesOfCommunity(community) {
   return state.nodes.filter(node => node.community === community);
 }
@@ -677,19 +731,25 @@ function renderStructure() {
     : modularity >= 0.3 ? 'clear but overlapping groups'
     : 'a fairly homogeneous collection';
 
+  // The row is a button, so the export control cannot live inside it; the two
+  // sit side by side in a wrapper instead.
   const communityHtml = ordered.map(([community, size]) => {
     const color = PALETTE[community % PALETTE.length];
     const selected = state.highlightCommunity === community;
     return `
-      <button class="structure-row${selected ? ' selected' : ''}" type="button" data-community="${community}"
-              title="Show only this community on the graph. Click again to show everything.">
-        <span class="sr-dot" style="background:${color}"></span>
-        <span class="sr-body">
-          <span class="sr-title">Community ${community + 1}</span>
-          <span class="sr-sub mono">${size} image${size === 1 ? '' : 's'}</span>
-        </span>
-        <span class="sr-thumbs">${thumbStrip(nodesOfCommunity(community))}</span>
-      </button>`;
+      <div class="structure-row-wrap">
+        <button class="structure-row${selected ? ' selected' : ''}" type="button" data-community="${community}"
+                title="Show only this community on the graph. Click again to show everything.">
+          <span class="sr-dot" style="background:${color}"></span>
+          <span class="sr-body">
+            <span class="sr-title">Community ${community + 1}</span>
+            <span class="sr-sub mono">${size} image${size === 1 ? '' : 's'}</span>
+          </span>
+          <span class="sr-thumbs">${thumbStrip(nodesOfCommunity(community))}</span>
+        </button>
+        <button class="sr-export" type="button" data-export-community="${community}"
+                title="Save every image in this community as a PDF, large enough to see what is in them">PDF</button>
+      </div>`;
   }).join('');
 
   // --- bridges
@@ -752,6 +812,12 @@ function renderStructure() {
       <div class="structure-thumbs">${articulationHtml || '<p class="help">None: the graph has no single point of failure.</p>'}</div>
     </section>`;
 
+  body.querySelectorAll('[data-export-community]').forEach(button => {
+    button.addEventListener('click', event => {
+      event.stopPropagation();  // the row underneath filters the graph
+      exportCommunityPdf(Number(button.dataset.exportCommunity), button);
+    });
+  });
   body.querySelectorAll('[data-community]').forEach(button => {
     button.addEventListener('click', () => {
       const community = Number(button.dataset.community);
@@ -966,10 +1032,7 @@ async function buildGraph() {
 }
 
 function exportPng() {
-  const link = document.createElement('a');
-  link.download = 'imagecluster-neighbor-graph.png';
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+  saveCanvasPng(canvas, exportFilename('graph', '', 'png'));
 }
 
 // --- Events ---------------------------------------------------------------

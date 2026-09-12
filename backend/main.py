@@ -25,10 +25,17 @@ from .dependency_check import check_dependencies, optional_dependency_report, py
 from .diagnostics import collect_system_report
 from .disagreement import model_disagreement
 from .encoders.registry import get_model_spec, public_model_registry
-from .exports import export_clusters
+from .exports import _safe_name, export_clusters
 from .housekeeping import THUMB_CACHE_DIR, prune_thumb_cache, startup_sweep
 from .image_scan import list_image_folders, scan_images
 from .jobs import cancel_job, create_clip_projection_job, get_job, list_jobs, list_projection_files
+from .pdf_export import (
+    PDF_AVAILABLE,
+    PDF_MISSING_MESSAGE,
+    SheetItem,
+    build_image_sheet,
+)
+from .pdf_export import stamp as pdf_stamp
 from .runtime_dirs import APP_DIR, IMG_DIR, OUTPUT_DIR, ROOT, ensure_runtime_dirs
 from .schemas import (
     ClipProjectionRequest,
@@ -40,6 +47,7 @@ from .schemas import (
     DistinguishRequest,
     DuplicateGroupsRequest,
     ExportClustersRequest,
+    ImageSheetRequest,
     LocalTokenRequest,
     MosaicRequest,
     NeighborGraphRequest,
@@ -57,7 +65,7 @@ from .semantic import (
     semantic_axis_preview,
 )
 from .version import __app_name__, __version__
-from .views import mosaic_view, neighbor_graph_view, projection_supports_graph
+from .views import mosaic_view, neighbor_graph_view, projection_supports_graph, validated_projection
 
 ensure_runtime_dirs()
 startup_sweep()
@@ -450,6 +458,49 @@ def analysis_clusters(req: ClusterSummaryRequest) -> dict:
         return cluster_summaries(req.projection_path)
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/exports/sheet")
+def export_image_sheet(req: ImageSheetRequest) -> Response:
+    """A result, as a PDF contact sheet the images can actually be read in.
+
+    One route serves every surface that produces a set of images - a community,
+    a neighbourhood, a similarity result - so the documents they generate are
+    the same artefact and can be filed together.
+
+    What could not be included is reported in headers rather than dropped in
+    silence: a sheet holding fewer images than the result it came from would be
+    quietly wrong, and the caller shows the difference.
+    """
+    if not PDF_AVAILABLE:
+        raise HTTPException(status_code=503, detail=PDF_MISSING_MESSAGE)
+    validated_projection(req.projection_path)  # provenance must be a real projection
+    try:
+        result = build_image_sheet(
+            title=req.title,
+            subtitle=req.subtitle,
+            meta_lines=list(req.meta_lines),
+            items=[
+                SheetItem(relative_path=i.relative_path, caption=i.caption, detail=i.detail)
+                for i in req.items
+            ],
+        )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    name = _safe_name(req.filename or f"imagecluster_sheet_{pdf_stamp()}")
+    if not name.lower().endswith(".pdf"):
+        name += ".pdf"
+    return Response(
+        content=result.pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{name}"',
+            "X-Sheet-Included": str(result.included),
+            "X-Sheet-Skipped": str(len(result.skipped)),
+            "X-Sheet-Undersized": str(len(result.undersized)),
+        },
+    )
 
 
 @app.post("/api/clusters/export")
