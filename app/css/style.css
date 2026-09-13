@@ -1925,7 +1925,6 @@ body.workflow-page {
 .bottom-dock {
   flex: 0 0 44px;
   min-height: 44px;
-  max-height: 350px;
   border-top: 1px solid var(--border);
   background: var(--surface);
   box-shadow: 0 -8px 24px rgba(20,22,26,.05);
@@ -1934,6 +1933,46 @@ body.workflow-page {
 
 .bottom-dock.is-expanded {
   flex-basis: 340px;
+}
+
+/* While dragging, the eased flex-basis fights the pointer and the panel lags
+   behind it. The class is added for the duration of the drag only. */
+.bottom-dock.is-resizing {
+  transition: none;
+  user-select: none;
+}
+
+.dock-resize {
+  height: 7px;
+  margin-bottom: -4px;      /* a bigger target than the line it draws */
+  position: relative;
+  z-index: 2;
+  cursor: ns-resize;
+  touch-action: none;       /* or a touch drag scrolls the page instead */
+}
+
+.dock-resize::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 46px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: var(--border);
+  transition: background .12s ease;
+}
+
+.dock-resize:hover::after,
+.dock-resize:focus-visible::after,
+.bottom-dock.is-resizing .dock-resize::after {
+  background: var(--ink-soft);
+}
+
+.dock-resize:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .dock-bar {
@@ -1980,7 +2019,8 @@ body.workflow-page {
 }
 
 .dock-body {
-  height: calc(100% - 44px);
+  /* 44px tab bar + 3px of in-flow resize grip (7px tall, -4px margin). */
+  height: calc(100% - 47px);
   overflow: auto;
   padding: 12px;
 }
@@ -3711,7 +3751,9 @@ body.workflow-page {
 
 .structure-row .sr-thumbs {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
   gap: 2px;
 }
 
@@ -4570,6 +4612,9 @@ body.workflow-page {
   display: flex;
   align-items: stretch;
   gap: 6px;
+  /* A grid item defaults to min-width:auto, so its content can force the track
+     wider than the panel and push the last button out of sight. */
+  min-width: 0;
 }
 
 .structure-row-wrap .structure-row {
@@ -4603,4 +4648,26 @@ body.workflow-page {
 .sr-export:disabled {
   opacity: .55;
   cursor: default;
+}
+
+/* The selected image's actions: open the original, or save the sheet. */
+.gi-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.gi-actions .sr-export {
+  height: 24px;
+}
+
+/* The query card's actions. Kept on one line so the Clear button stays where
+   it has always been and the exports sit beside it rather than above. */
+.sq-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
 }

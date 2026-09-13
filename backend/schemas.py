@@ -183,6 +183,13 @@ class ConceptArithmeticRequest(BaseModel):
     subtract: list[str] | None = None
     # How hard the phrases pull against the starting image. 0 returns the
     # image's plain neighbours; the upper end lets the concepts dominate.
+    #
+    # 1.0 measured over 25 starting images x 4 terms on a real collection:
+    # 64% of results differ from the plain neighbours, and the concept lift is
+    # 1.50 of the 2.02 sigma that searching the term alone can reach. At 3.0 it
+    # is 86% and 1.95 sigma - so close to the ceiling that the starting image
+    # has stopped mattering, which is not what "images like this one, but more
+    # X" means. The slider still goes there for anyone who wants it.
     strength: float = Field(default=1.0, ge=0.0, le=5.0)
     top_k: int = Field(default=24, ge=1, le=200)
 

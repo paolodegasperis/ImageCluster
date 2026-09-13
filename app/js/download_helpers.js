@@ -17,7 +17,11 @@ function exportFilename(surface, detail, extension) {
   const slug = String(detail || '')
     .replace(/\.[a-z0-9]+$/i, '')          // drop a file extension if one was passed
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+    // Runs of dots collapse: a subject like "../../etc/passwd" would otherwise
+    // survive as "..-..-etc-passwd", which is not dangerous once the slashes
+    // are gone but is a nonsense name to hand someone.
+    .replace(/\.{2,}/g, '.')
+    .replace(/^[-.]+|[-.]+$/g, '')
     .slice(0, 60);
   return ['imagecluster', surface, slug, stamp].filter(Boolean).join('_') + '.' + extension;
 }
@@ -70,7 +74,14 @@ function csvText(header, rows) {
 }
 
 function saveCsv(header, rows, filename) {
-  saveBlob(new Blob([csvText(header, rows)], { type: 'text/csv;charset=utf-8' }), filename);
+  // Reports rather than throws: the callers are synchronous click handlers with
+  // nowhere to catch, and a button that silently does nothing reads as broken.
+  try {
+    saveBlob(new Blob([csvText(header, rows)], { type: 'text/csv;charset=utf-8' }), filename);
+    return { ok: true, rows: rows.length };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
 }
 
 /* Ask the server to build a file, then hand it over.
@@ -90,7 +101,14 @@ async function downloadFromServer(url, payload, filename) {
     let detail = `Request failed (${response.status})`;
     try {
       const body = await response.json();
-      if (body && body.detail) detail = body.detail;
+      if (body && body.detail) {
+        // FastAPI returns a string for our own 400s but an array of error
+        // objects for a schema violation; the array stringifies to
+        // "[object Object]", which tells the reader nothing.
+        detail = Array.isArray(body.detail)
+          ? body.detail.map(e => e && e.msg ? `${(e.loc || []).slice(1).join('.')}: ${e.msg}` : String(e)).join('; ')
+          : String(body.detail);
+      }
     } catch (err) {
       /* not JSON: keep the status line */
     }
@@ -111,4 +129,12 @@ async function downloadFromServer(url, payload, filename) {
     skipped: count('X-Sheet-Skipped'),
     undersized: count('X-Sheet-Undersized'),
   };
+}
+
+/* Node's built-in test runner loads this file to check the CSV writer, which is
+ * the one piece of formatting here that is easy to get subtly wrong and whose
+ * mistakes only show up inside a spreadsheet. Browsers have no `module`, so this
+ * is inert in the app. */
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { exportFilename, csvCell, csvText, CSV_SEPARATOR };
 }

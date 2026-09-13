@@ -4,7 +4,7 @@
 forks, and further development. It describes what the app does, how it is built,
 which embedding models work and which do not, and where the known limits are.
 
-**Version at time of writing:** `/api/status` reports `6.4.1`
+**Version at time of writing:** `/api/status` reports `6.5.0`
 (`backend/version.py` is the single source of truth; see `CHANGELOG.md`).
 
 ---
@@ -72,6 +72,7 @@ except downloading model weights from Hugging Face on first use.
 | `backend/neighbors.py` | k-NN graph over embeddings: cosine, mutual flags, components, Louvain communities, bridges, articulation points |
 | `backend/views.py` | Mosaic and graph views over a saved projection on disk |
 | `backend/analysis.py` | Similar images, duplicates, outliers, cluster summaries, pair comparison |
+| `backend/pdf_export.py` | PDF contact sheets shared by every export surface; re-validates caller-supplied paths against `img/` |
 | `backend/semantic.py` | The shared text-image space beyond search: concept scores, semantic axes, distinguish, concept arithmetic |
 | `backend/disagreement.py` | Neighbourhood overlap between two projections of the same folder |
 | `backend/image_scan.py` | Image folder scanning |
@@ -129,6 +130,15 @@ standard deviations, not cosines.
 | `POST /api/semantic/distinguish` | The direction between two groups, read back as words — added v6.4 |
 | `POST /api/semantic/arithmetic` | Image ± phrases, ranked against the collection — added v6.4 |
 | `POST /api/analysis/disagreement` | Neighbourhood overlap between two projections — added v6.4 |
+| `POST /api/exports/sheet` | Any result as a PDF contact sheet; one route serves all three surfaces — added v6.5 |
+| `GET /favicon.ico` | The project icon, also answering the request browsers make unprompted — added v6.5 |
+
+**Exports.** PDFs are generated server-side (`pdf_export.py`) because `/api/thumb` clamps at 512px, which
+leaves no headroom under the 500px floor the sheets are built around; on the server the originals are on
+disk. The item list is chosen in the browser and re-validated path by path in `_safe_source()` — it is user
+input over HTTP, not a trusted query. `fpdf2` is optional: absent, the route answers 503 and the rest of the
+app is unchanged, the same treatment networkx gets. CSV is written in the browser (`download_helpers.js`)
+because the data is already there; its escaping is covered by `node --test`.
 
 **Semantic endpoints and the model.** The five `/api/semantic/*` routes and
 `axis-preview` load the projection's *own* text encoder — using a different model
@@ -294,17 +304,24 @@ python -m venv .venv
 .venv/Scripts/python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 .venv/Scripts/python -m pip install -r requirements-core.txt
 python run.py            # serves http://127.0.0.1:8765
-python -m pytest         # 255 tests (run from .venv, which has networkx and httpx)
+python -m pytest         # run from .venv, which has networkx, httpx and fpdf2
 python -m ruff check .   # lint (config in pyproject.toml)
+node --test tests/js/*.test.js   # the CSV writer and export filenames
 ```
 Frontend has no build step; edit the static files under `app/` and reload.
+
+`node --test` uses Node's built-in runner, so there is no package.json and
+nothing to install. It covers `app/js/download_helpers.js`, whose CSV escaping
+is the one piece of frontend formatting whose mistakes are invisible until a
+file is opened in a spreadsheet. Note the runner does not accept a bare
+directory here: pass the glob.
 
 ---
 
 ## 10. Document map
 - `README.md` — user-facing run instructions.
 - `README_TECH_STACK.md` — stack details, file map, routes, anchor ids.
-- `CHANGELOG.md` — V-5.3 (frozen) / V-5.4 (in development).
+- `CHANGELOG.md` — release history from v5.x onwards.
 - `docs/PLANNED_MODELS_FEASIBILITY.md` — planned-model integration playbook.
 - `docs/TECHNICAL_OVERVIEW.md` — this document.
 - `UI-check/` — design reference prototype (React; not shipped).

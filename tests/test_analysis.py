@@ -15,6 +15,7 @@ import json
 import numpy as np
 import pytest
 
+from backend import analysis
 from backend.analysis import (
     MAX_ANALYSIS_IMAGES,
     cluster_summaries,
@@ -22,7 +23,7 @@ from backend.analysis import (
     outlier_ranking,
     similar_images,
 )
-from backend.runtime_dirs import OUTPUT_DIR
+from backend.runtime_dirs import OUTPUT_DIR, ROOT
 
 NAME = "_pytest_analysis"
 REL = f"output/projections/{NAME}.tsv"
@@ -416,3 +417,55 @@ def test_percentile_places_a_strong_pair_near_the_top(planted):
     cross = compare_images(planted["rel"], path_a="img/c0_00.jpg", path_b="img/c2_07.jpg")
     assert twins["percentile_in_a"] > cross["percentile_in_a"]
     assert twins["similarity"] > twins["median_similarity"]
+
+
+# --------------------------------------------------------------------------
+# A group of near-duplicates the size of the whole collection
+#
+# Union-find merges a scan series or a set of video frames into one group
+# approaching the 20 000-image ceiling. The statistics used to be computed from
+# a full (g, g) matrix plus a boolean mask of the same shape, which at that size
+# runs to gigabytes and raises MemoryError - a type no route catches.
+
+
+def _identical_projection(tmp_path, count):
+    vectors = np.tile(np.array([[1.0, 0.0, 0.0, 0.0]], dtype="float32"), (count, 1))
+    rows = [{"filename": f"{i}.jpg", "relative_path": f"img/{i}.jpg",
+             "x": float(i), "y": 0.0, "cluster": "1"} for i in range(count)]
+    return rows, vectors
+
+
+def test_one_huge_group_is_summarised_without_a_full_pairwise_matrix(monkeypatch):
+    """500 identical images: every pair matches, so they collapse into one group."""
+    count = 500
+    rows, vectors = _identical_projection(None, count)
+    monkeypatch.setattr(analysis, "load_projection",
+                        lambda path: (ROOT / "output/projections/fake.tsv", rows, vectors))
+    result = analysis.duplicate_groups("output/projections/fake.tsv", threshold=0.9)
+    assert len(result["groups"]) == 1
+    group = result["groups"][0]
+    assert group["size"] == count
+    # Identical vectors: every pairwise similarity is 1.
+    assert group["mean_similarity"] == pytest.approx(1.0, abs=1e-4)
+    assert group["min_similarity"] == pytest.approx(1.0, abs=1e-4)
+    assert group["chained"] is False
+
+
+def test_group_statistics_match_a_direct_computation(monkeypatch):
+    """The blocked accumulation must agree with the obvious version."""
+    rng = np.random.default_rng(11)
+    base = rng.normal(size=(1, 16)).astype("float32")
+    vectors = (base + rng.normal(scale=0.02, size=(60, 16))).astype("float32")
+    vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+    rows = [{"filename": f"{i}.jpg", "relative_path": f"img/{i}.jpg",
+             "x": 0.0, "y": 0.0, "cluster": "1"} for i in range(len(vectors))]
+    monkeypatch.setattr(analysis, "load_projection",
+                        lambda path: (ROOT / "output/projections/fake.tsv", rows, vectors))
+    result = analysis.duplicate_groups("output/projections/fake.tsv", threshold=0.9)
+    group = result["groups"][0]
+
+    unit = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+    sims = unit @ unit.T
+    off = sims[~np.eye(len(unit), dtype=bool)]
+    assert group["mean_similarity"] == pytest.approx(float(off.mean()), abs=1e-5)
+    assert group["min_similarity"] == pytest.approx(float(off.min()), abs=1e-5)

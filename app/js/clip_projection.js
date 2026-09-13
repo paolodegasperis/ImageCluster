@@ -147,6 +147,154 @@ const DOCK_PANES = {
   analysis: 'analysisDockPane',
 };
 
+/* Resizing the bottom dock.
+ *
+ * The panel below the plot is where results are actually read - a cluster
+ * gallery, a search, a similarity ranking - and 340px is often not enough to
+ * read them in. Dragging its top edge trades plot height for panel height.
+ *
+ * The plot survives this without special handling: a ResizeObserver already
+ * watches the canvas's container, so it recomputes its backing store, refreshes
+ * the cached rect that turns clicks into coordinates, and redraws. The only
+ * thing that needs suppressing is the mosaic reload, which asks the server for
+ * a new layout and must not fire once per pointer move.
+ */
+const DOCK_HEIGHT_KEY = 'imagecluster.dockHeight';
+const DOCK_MIN_HEIGHT = 140;      // below this the tab bar is all that is left
+const DOCK_DEFAULT_HEIGHT = 340;  // what .is-expanded has always been
+// The plot must keep at least this share of the workspace. Without a floor the
+// panel can be dragged over the whole plot, and the view it belongs to is gone.
+const PLOT_MIN_SHARE = 0.33;
+
+function dockMaxHeight(dock) {
+  const available = dock.parentElement?.getBoundingClientRect().height || 0;
+  // A container that cannot be measured (hidden ancestor, a zero-height layout
+  // pass) means "no information", not "the limit is 340" - clamping to a guess
+  // would quietly shrink a height the user had chosen.
+  if (!available) return Infinity;
+  return Math.max(DOCK_MIN_HEIGHT, Math.round(available * (1 - PLOT_MIN_SHARE)));
+}
+
+function setDockHeight(height, persist = true) {
+  const dock = $('projectionDock');
+  if (!dock) return;
+  const clamped = Math.round(Math.max(DOCK_MIN_HEIGHT, Math.min(dockMaxHeight(dock), height)));
+  dock.style.flexBasis = `${clamped}px`;
+  dock.classList.add('is-expanded');
+  if (persist) {
+    try {
+      localStorage.setItem(DOCK_HEIGHT_KEY, String(clamped));
+    } catch (err) {
+      /* private mode, or storage disabled: the height simply is not remembered */
+    }
+  }
+  return clamped;
+}
+
+function restoreDockHeight() {
+  const dock = $('projectionDock');
+  if (!dock) return;
+  let raw = null;
+  try {
+    raw = localStorage.getItem(DOCK_HEIGHT_KEY);
+  } catch (err) {
+    raw = null;
+  }
+  // hasNumber sees the raw string: Number(null) is 0, so testing after the
+  // conversion could never tell a missing key from a stored zero.
+  if (!hasNumber(raw)) return;
+  const stored = Number(raw);
+  // Only a height the user actually chose is restored; the collapsed state is
+  // the default and should stay the default.
+  if (stored >= DOCK_MIN_HEIGHT && dock.classList.contains('is-expanded')) {
+    setDockHeight(stored, false);
+  }
+}
+
+function initDockResize() {
+  const handle = $('dockResize');
+  const dock = $('projectionDock');
+  if (!handle || !dock) return;
+
+  let startY = 0;
+  let startHeight = 0;
+  let pointerId = null;
+  let moved = false;
+
+  const onMove = event => {
+    // A few pixels of jitter while pressing is not a drag.
+    if (Math.abs(event.clientY - startY) > 2) moved = true;
+    if (!moved) return;
+    // Upwards is taller: the handle is the panel's top edge.
+    setDockHeight(startHeight + (startY - event.clientY), false);
+  };
+
+  const onUp = () => {
+    if (pointerId !== null) {
+      try { handle.releasePointerCapture(pointerId); } catch (err) { /* already released */ }
+      pointerId = null;
+    }
+    // J4: bound to the window as well, because a failed pointer capture would
+    // otherwise leave the drag unendable once the cursor leaves the 7px strip.
+    for (const target of [handle, window]) {
+      target.removeEventListener('pointermove', onMove);
+      target.removeEventListener('pointerup', onUp);
+      target.removeEventListener('pointercancel', onUp);
+    }
+    dock.classList.remove('is-resizing');
+    // A press that never moved is not a resize: persisting here would measure
+    // the collapsed height, clamp it up to the floor, and overwrite the height
+    // the user had chosen.
+    if (moved) {
+      setDockHeight(dock.getBoundingClientRect().height, true);
+      scheduleMosaicRefresh();
+    }
+  };
+
+  handle.addEventListener('pointerdown', event => {
+    if (event.button !== 0 && event.pointerType === 'mouse') return;
+    startY = event.clientY;
+    moved = false;
+    startHeight = dock.getBoundingClientRect().height;
+    // An unexpanded dock starts from its collapsed 44px, which would make the
+    // first drag jump; treat it as opening to the default instead.
+    if (!dock.classList.contains('is-expanded')) startHeight = DOCK_DEFAULT_HEIGHT;
+    dock.classList.add('is-resizing');
+    pointerId = event.pointerId;
+    try { handle.setPointerCapture(pointerId); } catch (err) { pointerId = null; }
+    for (const target of [handle, window]) {
+      target.addEventListener('pointermove', onMove);
+      target.addEventListener('pointerup', onUp);
+      target.addEventListener('pointercancel', onUp);
+    }
+    event.preventDefault();
+  });
+
+  handle.addEventListener('dblclick', () => {
+    setDockHeight(DOCK_DEFAULT_HEIGHT);
+    scheduleMosaicRefresh();
+  });
+
+  // Keyboard: the handle is a focusable separator, so it should answer to arrows.
+  handle.addEventListener('keydown', event => {
+    const step = event.shiftKey ? 48 : 16;
+    if (event.key === 'ArrowUp') setDockHeight(dock.getBoundingClientRect().height + step);
+    else if (event.key === 'ArrowDown') setDockHeight(dock.getBoundingClientRect().height - step);
+    else if (event.key === 'Home') setDockHeight(DOCK_DEFAULT_HEIGHT);
+    else return;
+    event.preventDefault();
+    scheduleMosaicRefresh();
+  });
+
+  // A shorter window can leave the stored height taller than the plot allows.
+  window.addEventListener('resize', () => {
+    if (!dock.classList.contains('is-expanded')) return;
+    const current = dock.getBoundingClientRect().height;
+    const limit = dockMaxHeight(dock);
+    if (current > limit) setDockHeight(limit, false);
+  });
+}
+
 function selectDockPane(name, expand = false) {
   if (!DOCK_PANES[name]) return;
   document.querySelectorAll('[data-dock-tab]').forEach(tab => {
@@ -157,7 +305,10 @@ function selectDockPane(name, expand = false) {
     if (pane) pane.classList.toggle('active', tabName === name);
   }
   const dock = document.getElementById('projectionDock');
-  if (dock && expand) dock.classList.add('is-expanded');
+  if (dock && expand) {
+    dock.classList.add('is-expanded');
+    restoreDockHeight();
+  }
 }
 
 async function apiJson(url, options) {
@@ -472,6 +623,9 @@ async function startJob() {
   if (has('cancelBtn')) $('cancelBtn').disabled = false;
   state.rows = [];
   clearSearch(false);
+  // The similar-images panel belongs to the projection being replaced. Left up,
+  // its export buttons post a null projection_path for the whole run.
+  if (typeof clearSimilar === 'function') clearSimilar(false);
   state.resultPath = null;
   // The old grid belongs to the old projection; without this the stale mosaic is
   // still painted behind the empty-state message until the new run finishes.
@@ -2185,4 +2339,5 @@ async function initFromQuery() {
   }
 }
 
+initDockResize();
 initFromQuery().catch(err => setJobText(`Startup error: ${err.message}`));

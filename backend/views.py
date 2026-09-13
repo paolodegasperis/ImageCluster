@@ -215,6 +215,7 @@ def neighbor_graph_view(
         "bridges": graph["bridges"],
         "articulation_points": graph["articulation_points"],
         "structure_available": graph["structure_available"],
+        "structure_reason": graph.get("structure_reason"),
         "nodes": nodes,
         "edges": graph["edges"],
     }

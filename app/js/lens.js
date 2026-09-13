@@ -428,14 +428,25 @@ function renderDisagreement(data) {
     `mean overlap ${(data.mean_agreement * 100).toFixed(0)}% of ${data.neighbours} neighbours · ` +
     `${data.total_disagreement} share none. ${verdict}`, 'ok');
 
+  // Overlap is a count out of k, so ties are the rule rather than the exception.
+  // Saying so is the honest framing: without it the arbitrary order inside a tie
+  // reads as a ranking, and the first few look singled out when nothing
+  // distinguishes them from the other sixty.
+  const tiedNote = data.tied_at_top > 1
+    ? `<strong>${data.tied_at_top} images share the lowest overlap</strong>, so the order among them is arbitrary &mdash;
+       read them as one group, not as a ranking. `
+    : '';
+
   setHTML('disagreementResult', `
     <p class="help">
-      Lowest overlap first: these are the images whose closest relatives change completely depending on which model
-      you ask. A low score is the interesting end.
+      ${tiedNote}Lowest overlap first: these are the images whose closest relatives change completely depending on
+      which model you ask. A low score is the interesting end.
     </p>
     <div class="lens-grid">
       ${data.results.map(item => imageCard(item, [
-        `#${item.rank}`,
+        // A shared rank is shown as "=3" rather than "#3": the position is not
+        // this image's own.
+        item.tied_with > 1 ? `=${item.rank} of ${item.tied_with} tied` : `#${item.rank}`,
         `overlap ${(item.score * 100).toFixed(0)}%`,
         `${item.shared_neighbours}/${data.neighbours} shared`,
       ])).join('')}

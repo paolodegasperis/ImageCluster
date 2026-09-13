@@ -176,6 +176,15 @@ def grid_mosaic(
     if requested not in {"auto", "optimal", "split"}:
         raise ValueError(f"Unknown mosaic algorithm '{algorithm}'. Use auto, optimal or split.")
 
+    if requested == "optimal" and count > OPTIMAL_SOLVER_MAX_IMAGES:
+        # Refused rather than attempted: the exact solver's cost matrix grows
+        # with the square of the count, and at this size it exhausts memory
+        # instead of returning slowly.
+        raise ValueError(
+            f"The exact assignment cannot handle {count} images; its limit is "
+            f"{OPTIMAL_SOLVER_MAX_IMAGES}. Use the recursive split, which is built for large collections."
+        )
+
     use_optimal = requested == "optimal" or (requested == "auto" and count <= OPTIMAL_SOLVER_MAX_IMAGES)
     note = ""
     if use_optimal and not scipy_available():

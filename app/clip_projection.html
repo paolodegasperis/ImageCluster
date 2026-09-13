@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="stylesheet" href="/static/css/style.css" />
 </head>
 <body class="redesign workflow-page" data-density="cozy">
@@ -278,6 +279,9 @@
               title="Grid size, image count and which assignment method was actually used">Not computed yet.</span>
       </div>
       <section class="bottom-dock" id="projectionDock">
+        <div class="dock-resize" id="dockResize" role="separator" aria-orientation="horizontal"
+             tabindex="0" aria-label="Resize the panel"
+             title="Drag to make this panel taller or shorter. Double-click to reset. The plot keeps at least a third of the height."></div>
         <div class="dock-bar">
           <div class="dock-tabs">
             <button class="dock-tab active" type="button" data-dock-tab="cluster"

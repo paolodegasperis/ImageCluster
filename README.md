@@ -118,6 +118,38 @@ Once a projection exists you can look at it in two more ways, without recomputin
   ranked by similarity. The layout can follow the projection's coordinates or be relaxed with a
   force-directed pass.
 
+### Taking results away
+
+Every view here is a working instrument, and a result that cannot leave the screen cannot be worked on
+afterwards. Three surfaces now export what they are showing, in two formats:
+
+| Where | What it exports |
+|---|---|
+| Neighbor graph → **Structure** → a community | Every image in that community |
+| Neighbor graph → **Selected** → an image | That image and its nearest neighbours, in order |
+| Embedding projection → **Similar images** | The query and its matches, ranked |
+
+**PDF** produces a contact sheet in which the images are large enough to actually look at — no image is
+embedded smaller than 500px on its long side, two per row on A4, each with its filename and what the view
+knows about it (similarity, rank, cluster, number of links). Images whose original is smaller than that are
+included at their own size and marked, rather than enlarged: blowing them up would invent detail and hide
+that the source is small.
+
+**CSV** gives the same result as numbers, for whatever comes after looking at it. The columns differ between
+surfaces, but the shape is constant: an ordering column, then filename and path, then what the view knows,
+then the plot coordinates. In the two neighbour exports the image itself is row 0 with no similarity — a
+neighbour list without the image it belongs to cannot be read back months later. Files use `;` and a UTF-8
+BOM, so they open correctly in an Italian Excel.
+
+The PDFs are built on the server, where the originals are on disk at full resolution. The browser can only
+reach images through the thumbnail endpoint, which stops at 512px.
+
+### Making the results panel bigger
+
+The panel below the plot is where results are read. Drag its top edge to trade plot height for panel height;
+double-click to reset, or use the arrow keys once it has focus. The chosen height is remembered. The plot
+always keeps at least a third of the space.
+
 ### Asking the model questions (optional)
 
 A CLIP-family model does not only turn images into numbers: it puts images and words in the *same*
@@ -207,6 +239,7 @@ Models marked *optional* require a separate installer (see above). Models shown 
 | `http://127.0.0.1:8765/clip` | Main guided workflow |
 | `http://127.0.0.1:8765/graph` | Nearest-neighbor graph — communities, bridges, projection stress |
 | `http://127.0.0.1:8765/guide` | What each function does — every feature in plain language |
+| `POST /api/exports/sheet` | A result as a PDF contact sheet (needs the optional `fpdf2` package) |
 | `http://127.0.0.1:8765/lens` | Lenses — what separates two groups, concept arithmetic, model disagreement |
 | `http://127.0.0.1:8765/models` | Model guide, capability cards, HF token settings, glossary |
 | `http://127.0.0.1:8765/api/status` | JSON dependency status |
@@ -272,4 +305,4 @@ Some models require accepting a license on Hugging Face before download. If a mo
 
 ## Version
 
-v6.4.1 · September 2026
+v6.5.0 · September 2026

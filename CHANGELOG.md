@@ -1,5 +1,161 @@
 # Changelog
 
+## v6.5.0 - results that can leave the screen
+
+Every view in this app is a working instrument, and until now a result could
+only be looked at. A community, a neighbourhood, a similarity ranking: each is
+an answer worth taking away, annotating and returning to. Three surfaces now
+export what they are showing.
+
+### Contact sheets
+
+| Where | What it exports |
+|---|---|
+| Neighbor graph, Structure, a community | every image in that community |
+| Neighbor graph, Selected, an image | that image and its nearest neighbours, in order |
+| Embedding projection, Similar images | the query and its matches, ranked |
+
+One layout serves all three, deliberately: they are different questions, but a
+folder of these documents should be readable without relearning the format each
+time. Each sheet carries a heading saying what it contains and where it came
+from, two images per row on A4, and under each the filename plus what that view
+knows - similarity, rank, cluster, number of links, whether the image is
+load-bearing in the graph.
+
+**No image is embedded smaller than 500px on its long side**, which is the whole
+point: a sheet you cannot look closely at answers nothing. Images whose original
+is already smaller are included at their own size and **marked** rather than
+enlarged - blowing them up would invent detail and hide that the source is
+small. Measured on a real 43-image community: long side median 1000px, 11 pages.
+
+Generated server-side, and not for convenience: the browser can only reach
+images through the thumbnail endpoint, which clamps at 512px - no headroom at
+all under that 500px floor. On the server the originals are on disk.
+
+### CSV
+
+The same results as numbers, for whatever comes after looking at them. Columns
+differ between surfaces because the questions do, but the shape is constant: an
+ordering column, then filename and path, then what the view knows, then the plot
+coordinates. Two exports from different panels line up in one spreadsheet.
+
+In both neighbour exports the image itself is **row 0 with no similarity**. A
+ranking without the thing it was ranked against cannot be read back in six
+months.
+
+Files are written with a semicolon separator and a UTF-8 BOM. Excel follows the
+system list separator, so a comma-separated file opens entirely in column A on
+an Italian machine, and without the BOM every accent is mangled. The escaping is
+covered by `node --test tests/js/*.test.js`, using Node's built-in runner - no
+dependency, no package.json.
+
+### A resizable results panel
+
+340px was often not enough to read a cluster gallery in. Drag the panel's top
+edge, double-click to reset, or use the arrows once the grip has focus; the
+height is remembered. The plot keeps at least a third of the space, because a
+panel that covers the view it belongs to has destroyed it.
+
+The plot survives this without special handling - a ResizeObserver already
+watched the canvas container, so the backing store, the click-to-coordinate
+cache and the drawing all follow. Two things needed suppressing: the eased
+flex-basis, which fought the pointer, and the mosaic reload, which asks the
+server for a new layout and now fires once on release rather than per move.
+
+### fpdf2, optional
+
+Declared in `requirements-core.txt` and registered in `dependency_check.py`. It
+is pure Python, so it installs from a wheel everywhere without a compiler.
+Absent it, the export route answers 503 with install instructions and
+**everything else is unchanged** - the same treatment networkx already gets.
+
+---
+
+## Fixes
+
+A full audit before release found twelve defects. The ones that mattered:
+
+**One corrupt embedding silently poisoned the semantic answers.** `semantic.py`
+never sanitised its vectors, unlike `analysis.py`, `neighbors.py` and
+`disagreement.py`. The subtle part: every guard in that module compares a
+magnitude against a threshold, and **any comparison against NaN is false**, so
+the zero-length check did not fire and `distinguish` went on to rank the
+vocabulary along an all-NaN direction - returning a confidently ordered list of
+words with null scores. Concept arithmetic returned zero results ("nothing
+matched") when the real cause was a broken vector. One row was enough.
+
+**The Structure panel blamed networkx for being absent when it was installed.**
+The unavailable flag covered two unrelated causes - missing package, or no edges
+- and the UI always reported the first, sending the reader to install something
+they already had. The causes are now distinct, and a threshold that removed
+every edge says so and names the three settings that would bring them back.
+
+**A plain click on the new resize grip destroyed the remembered height.**
+Pressing without dragging measured the collapsed 44px, clamped it up to the
+140px floor, expanded the panel and wrote 140 over whatever the user had chosen.
+Grabbing a grip is a natural gesture; it must not be destructive.
+
+**Duplicate detection could exhaust memory.** Group statistics built a full
+square matrix plus a boolean mask of the same shape. A scan series or a set of
+video frames merges into one group approaching the 20 000-image ceiling, where
+that is gigabytes and raises MemoryError - a type no route catches. Now
+accumulated in row blocks: 225MB down to 32MB at 5 000 images, results identical.
+
+**Five routes answered 500 where a 4xx belonged**, all reachable in ordinary use:
+a log already pruned by housekeeping, a result deleted from `output/`, a
+projection read on a directory, an unknown model key. The four job and
+projection readers disagreed with each other - one checked the file still
+existed, three did not.
+
+**PDF generation had two paths to a 500.** PIL decodes lazily, so a truncated
+file small enough to skip the resize failed at save time, which sat outside the
+per-item guard: identical corruption produced a clean "1 missing" note when the
+image was large and a 500 when it was small. And DecompressionBombError descends
+from Exception, not OSError, so one very large panorama failed the whole sheet.
+
+**The exact mosaic had no size ceiling.** The 2000-image limit gated the
+automatic choice only; asking for it explicitly walked past it into a
+multi-gigabyte allocation.
+
+Also: the similar-images panel survived a projection reset and its export
+buttons then posted a null path; FastAPI validation errors reached the user as
+`[object Object]`; the three CSV exports had no error handling at all, so a
+failure left a dead button; the dock body did not account for the grip's 3px and
+the pane spilled past its border.
+
+### Three smaller things
+
+**A favicon.** The project shipped icons but no page declared one, so every page
+view logged a 404 and the tab stayed blank. `/favicon.ico` now serves
+`icone/ImageClusetIcon.ico` - the icon matching the current name, not the legacy
+one carrying the old name - and every page declares it.
+
+**Ties in the model-disagreement ranking are no longer disguised as an order.**
+Overlap is a count out of k, so it takes k+1 distinct values and ties are the
+rule: on two genuinely different models, dozens of images sit at zero together.
+Numbering them 1, 2, 3 presented the tie-break - index order, therefore
+alphabetical - as a measurement, and made the first few look singled out. Equal
+scores now share a rank, shown as "=1 of 25 tied", and the panel says the order
+within a tie is arbitrary.
+
+**Obsolete machinery removed from `semantic.py`.** `_text_centroid`,
+`_TEXT_CENTROIDS` and `DEFAULT_ARITHMETIC_STRENGTH` were all uncalled, and all
+described the *first* implementation of concept arithmetic - the one that added
+a phrase vector to an image vector and was swamped by the modality gap. That was
+replaced in v6.4 by a combination in score space, where the gap stops mattering.
+The strength constant carried measurements taken against the old behaviour:
+re-measured on the current implementation, strength 1 moves 64% of results and
+reaches 1.50 of the 2.02 sigma a term can achieve alone - not the 24% and 0.5
+sigma the comment claimed. The default stays 1.0, now with the real figure
+recorded where it is declared; at 3.0 the starting image has stopped mattering,
+which is not what "images like this one, but more X" means.
+
+### Verification
+
+349 Python tests, 16 JavaScript tests, ruff clean, every `app/js` file passes
+`node --check`. Exercised against real projections from four different models
+rather than synthetic data alone.
+
 ## v6.4.1 - two things that did not work, and a page explaining the rest
 
 ### Concept arithmetic returned the same images whatever you typed

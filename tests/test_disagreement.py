@@ -92,7 +92,14 @@ def test_every_image_is_scored_and_ranked_least_agreement_first(two_models):
     assert len(result["agreement"]) == COUNT
     scores = [item["score"] for item in result["results"]]
     assert scores == sorted(scores)
-    assert [item["rank"] for item in result["results"]] == list(range(1, COUNT + 1))
+    # Competition ranking: a rank is the 1-based position of the first item on
+    # that score, so equal scores share it and ranks never decrease.
+    ranks = [item["rank"] for item in result["results"]]
+    assert ranks == sorted(ranks)
+    for position, item in enumerate(result["results"], start=1):
+        assert item["rank"] <= position
+    for a, b in zip(result["results"], result["results"][1:], strict=False):
+        assert (a["rank"] == b["rank"]) == (a["score"] == b["score"])
 
 
 def test_shared_neighbours_is_consistent_with_the_score(two_models):
@@ -149,3 +156,44 @@ def test_a_non_finite_row_does_not_poison_the_comparison(two_models):
     sets = disagreement._neighbour_sets(broken, 4)
     assert len(sets) == COUNT
     assert all(len(neighbours) == 4 for neighbours in sets)
+
+
+# --------------------------------------------------------------------------
+# Ties
+#
+# Overlap is a count out of k, so it takes k+1 distinct values and ties are the
+# rule. Numbering tied images 1, 2, 3 presented the tie-break - index order, so
+# alphabetical - as a measured ordering, and made the first few look singled out.
+
+
+def test_images_on_the_same_score_share_a_rank(two_models):
+    """Identical embeddings: every image agrees completely, so all tie at 1."""
+    result = disagreement.model_disagreement(
+        two_models["a"], two_models["same"], neighbours=5, top_k=COUNT)
+    assert {item["rank"] for item in result["results"]} == {1}
+    assert all(item["tied_with"] == COUNT for item in result["results"])
+    assert result["tied_at_top"] == COUNT
+
+
+def test_a_rank_is_skipped_after_a_tie(two_models):
+    """Three at rank 1 means the next distinct score is rank 4, not rank 2."""
+    result = disagreement.model_disagreement(
+        two_models["a"], two_models["b"], neighbours=5, top_k=COUNT)
+    seen: dict[int, int] = {}
+    for item in result["results"]:
+        seen.setdefault(item["rank"], 0)
+        seen[item["rank"]] += 1
+    running = 1
+    for rank in sorted(seen):
+        assert rank == running
+        running += seen[rank]
+
+
+def test_tied_with_counts_the_whole_group_not_the_page(two_models):
+    """The count describes the tie, so a truncated top_k must not shrink it."""
+    full = disagreement.model_disagreement(
+        two_models["a"], two_models["same"], neighbours=5, top_k=COUNT)
+    short = disagreement.model_disagreement(
+        two_models["a"], two_models["same"], neighbours=5, top_k=3)
+    assert short["results"][0]["tied_with"] == full["results"][0]["tied_with"]
+    assert len(short["results"]) == 3

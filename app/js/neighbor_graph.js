@@ -611,10 +611,25 @@ function renderInspector() {
       <img src="${escapeHtml(thumbUrl(node, 320))}" alt="" />
       <div class="gi-title">${escapeHtml(node.filename)}</div>
       <div class="gi-meta mono">${node.degree} link(s) · component ${node.component + 1}${hasNumber(node.cluster) ? ` · cluster ${node.cluster}` : ''}</div>
-      <a class="search-open-link" href="${escapeHtml(imageUrl(node))}" target="_blank" rel="noopener">Open full image</a>
+      <div class="gi-actions">
+        <a class="search-open-link" href="${escapeHtml(imageUrl(node))}" target="_blank" rel="noopener">Open full image</a>
+        <button class="sr-export" type="button" data-export-node
+                title="Save this image and its nearest neighbours as a PDF, large enough to compare them">PDF</button>
+        <button class="sr-export" type="button" data-export-node-csv
+                title="Save the neighbour list as a CSV: rank, filename, similarity and whether the link is mutual">CSV</button>
+      </div>
     </div>
     <div class="gi-section-title">Nearest neighbours</div>
     <div class="gi-neighbours">${neighbourCards || '<p class="help">This image has no edges at the current k and threshold.</p>'}</div>`;
+
+  const exportButton = body.querySelector('[data-export-node]');
+  if (exportButton) {
+    exportButton.addEventListener('click', () => exportNodePdf(node, links, exportButton));
+  }
+  const csvButton = body.querySelector('[data-export-node-csv]');
+  if (csvButton) {
+    csvButton.addEventListener('click', () => exportNodeCsv(node, links));
+  }
 
   body.querySelectorAll('[data-node-index]').forEach(button => {
     button.addEventListener('click', () => {
@@ -623,6 +638,116 @@ function renderInspector() {
       selectNode(index);
     });
   });
+}
+
+/* The same two results as numbers.
+ *
+ * The columns differ between surfaces because the questions do, but the shape
+ * is deliberately constant: an ordering column first, then filename and path,
+ * then what the view knows, then the plot coordinates last. That is what makes
+ * two exports from different panels line up in a spreadsheet.
+ */
+function exportCommunityCsv(community) {
+  const nodes = nodesOfCommunity(community);
+  if (!nodes.length) return;
+  const header = ['position', 'filename', 'relative_path', 'community', 'cluster',
+                  'links', 'load_bearing', 'x', 'y'];
+  const rows = nodes.map((node, index) => [
+    index + 1,
+    node.filename,
+    node.relative_path,
+    community + 1,
+    hasNumber(node.cluster) ? Number(node.cluster) : '',
+    node.degree,
+    node.articulation ? 'yes' : '',
+    node.x ?? '',
+    node.y ?? '',
+  ]);
+  const label = `Community ${community + 1}`;
+  const report = saveCsv(header, rows, exportFilename('community', label, 'csv'));
+  setText('graphMessage', report.ok
+    ? `${label}: ${rows.length} rows exported.`
+    : `CSV export failed: ${report.error}`);
+  $('graphMessage').className = `status-banner ${report.ok ? 'ok' : 'warn'}`;
+}
+
+function exportNodeCsv(node, links) {
+  const header = ['rank', 'filename', 'relative_path', 'similarity', 'mutual',
+                  'cluster', 'community', 'x', 'y'];
+  // The selected image is row 0 with no similarity: a neighbour list without
+  // the image it belongs to cannot be read back months later.
+  const row = (n, rank, similarity, mutual) => [
+    rank, n.filename, n.relative_path, similarity, mutual,
+    hasNumber(n.cluster) ? Number(n.cluster) : '',
+    hasNumber(n.community) ? n.community + 1 : '',
+    n.x ?? '', n.y ?? '',
+  ];
+  const rows = [row(node, 0, '', '')];
+  links.forEach((link, position) => {
+    const other = state.nodes[link.other];
+    if (other) rows.push(row(other, position + 1, link.similarity.toFixed(6), link.mutual ? 'yes' : ''));
+  });
+  const report = saveCsv(header, rows, exportFilename('neighbours', node.filename, 'csv'));
+  setText('graphMessage', report.ok
+    ? `${node.filename}: ${rows.length} rows exported, the image itself included.`
+    : `CSV export failed: ${report.error}`);
+  $('graphMessage').className = `status-banner ${report.ok ? 'ok' : 'warn'}`;
+}
+
+// One image and its neighbourhood, as the same sheet a community produces.
+//
+// The selected image leads, then its neighbours in the order the graph ranks
+// them, so the page reads as the question it answers: what does this model
+// consider closest to this, and how close is close.
+async function exportNodePdf(node, links, button) {
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = '...';
+  try {
+    const graph = state.graph || {};
+    const items = [{
+      relative_path: node.relative_path,
+      caption: node.filename,
+      detail: 'the selected image',
+    }];
+    links.forEach((link, position) => {
+      const other = state.nodes[link.other];
+      if (!other) return;
+      items.push({
+        relative_path: other.relative_path,
+        caption: other.filename,
+        detail: `#${position + 1}  ·  similarity ${link.similarity.toFixed(4)}`
+          + (link.mutual ? '  ·  mutual' : ''),
+      });
+    });
+
+    const report = await downloadFromServer('/api/exports/sheet', {
+      projection_path: state.projectionPath,
+      title: node.filename,
+      subtitle: `${links.length} nearest neighbour${links.length === 1 ? '' : 's'} in the graph`,
+      meta_lines: [
+        `Neighbor graph · k=${graph.k ?? $('graphK')?.value ?? '?'}`
+          + (hasNumber(node.community) ? ` · community ${node.community + 1}` : '')
+          + (hasNumber(node.cluster) ? ` · cluster ${node.cluster}` : ''),
+        `${graph.model_label || ''} · ${state.projectionPath.split('/').pop()}`.replace(/^ · /, ''),
+      ].filter(line => line.trim()),
+      items,
+      filename: exportFilename('neighbours', node.filename, 'pdf'),
+    });
+
+    const notes = [];
+    if (report.skipped) notes.push(`${report.skipped} missing from img/`);
+    if (report.undersized) notes.push(`${report.undersized} smaller than 500px, shown at their own size`);
+    setText('graphMessage', `${node.filename}: ${report.included} image${report.included === 1 ? '' : 's'} exported`
+      + (notes.length ? ` · ${notes.join(' · ')}` : '.'));
+    $('graphMessage').className = `status-banner ${notes.length ? 'warn' : 'ok'}`;
+  } catch (err) {
+    setText('graphMessage', `PDF export failed: ${err.message}`);
+    $('graphMessage').className = 'status-banner warn';
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
 }
 
 // --- Structure panel ------------------------------------------------------
@@ -662,7 +787,7 @@ async function exportCommunityPdf(community, button) {
       subtitle: `${nodes.length} image${nodes.length === 1 ? '' : 's'} of ${state.nodes.length}`
         + (hasNumber(graph.modularity) ? ` · graph modularity ${graph.modularity.toFixed(3)}` : ''),
       meta_lines: [
-        `Neighbor graph · k=${graph.k ?? state.k} · ${state.edges.length} edges`,
+        `Neighbor graph · k=${graph.k ?? $('graphK')?.value ?? '?'} · ${state.edges.length} edges`,
         `${graph.model_label || ''} · ${state.projectionPath.split('/').pop()}`.replace(/^ · /, ''),
       ].filter(line => line.trim()),
       items: nodes.map(node => ({
@@ -714,7 +839,10 @@ function renderStructure() {
     return;
   }
   if (graph.structure_available === false) {
-    body.innerHTML = '<p class="help">The structural analysis needs the <code>networkx</code> package, which is not installed in this environment. The graph itself is unaffected.</p>';
+    // Why it is unavailable decides what the reader should do about it.
+    body.innerHTML = graph.structure_reason === 'no_edges'
+      ? '<p class="help">No links survived the current settings, so there is no structure to read. Lower the minimum similarity, raise k, or turn off <em>only reciprocal edges</em>.</p>'
+      : '<p class="help">The structural analysis needs the <code>networkx</code> package, which is not installed in this environment. The graph itself is unaffected.</p>';
     return;
   }
 
@@ -745,10 +873,13 @@ function renderStructure() {
             <span class="sr-title">Community ${community + 1}</span>
             <span class="sr-sub mono">${size} image${size === 1 ? '' : 's'}</span>
           </span>
-          <span class="sr-thumbs">${thumbStrip(nodesOfCommunity(community))}</span>
+          <span class="sr-thumbs">${thumbStrip(nodesOfCommunity(community), 3)}</span>  <!-- three, not five: with both export buttons the strip is clipped, and a
+                 half-cut thumbnail reads as a rendering fault rather than a preview -->
         </button>
         <button class="sr-export" type="button" data-export-community="${community}"
                 title="Save every image in this community as a PDF, large enough to see what is in them">PDF</button>
+        <button class="sr-export" type="button" data-export-community-csv="${community}"
+                title="Save this community as a CSV: filename, links, cluster and plot coordinates">CSV</button>
       </div>`;
   }).join('');
 
@@ -812,6 +943,12 @@ function renderStructure() {
       <div class="structure-thumbs">${articulationHtml || '<p class="help">None: the graph has no single point of failure.</p>'}</div>
     </section>`;
 
+  body.querySelectorAll('[data-export-community-csv]').forEach(button => {
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      exportCommunityCsv(Number(button.dataset.exportCommunityCsv));
+    });
+  });
   body.querySelectorAll('[data-export-community]').forEach(button => {
     button.addEventListener('click', event => {
       event.stopPropagation();  // the row underneath filters the graph

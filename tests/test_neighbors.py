@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from backend import neighbors
 from backend.neighbors import MAX_GRAPH_NODES, build_neighbor_graph
 
 
@@ -227,3 +228,40 @@ def test_a_missing_networkx_degrades_without_breaking_the_graph(monkeypatch):
     # The graph itself is unaffected.
     assert graph["edge_count"] > 0
     assert all(edge["bridge"] is False for edge in graph["edges"])
+
+
+# --------------------------------------------------------------------------
+# Why the structural reading is unavailable
+#
+# `available: False` used to carry two unrelated causes, and the UI announced
+# the wrong one: a threshold that removed every edge was reported to the user as
+# a missing networkx install, sending them to fix a problem they did not have.
+
+
+def test_a_graph_with_no_edges_says_so_rather_than_blaming_networkx():
+    structure = neighbors._graph_structure(5, [], [])
+    assert structure["available"] is False
+    assert structure["reason"] == "no_edges"
+
+
+def test_a_missing_networkx_is_named_as_the_cause(monkeypatch):
+    monkeypatch.setattr(neighbors, "_networkx", lambda: None)
+    structure = neighbors._graph_structure(3, [(0, 1), (1, 2)], [0.9, 0.8])
+    assert structure["available"] is False
+    assert structure["reason"] == "missing_networkx"
+
+
+def test_a_usable_graph_reports_no_reason():
+    if neighbors._networkx() is None:
+        pytest.skip("networkx is not installed")
+    structure = neighbors._graph_structure(3, [(0, 1), (1, 2)], [0.9, 0.8])
+    assert structure["available"] is True
+    assert structure["reason"] is None
+
+
+def test_the_reason_reaches_the_graph_payload():
+    """The frontend branches on it, so it must survive the trip."""
+    vectors = np.eye(4, dtype="float32")
+    graph = neighbors.build_neighbor_graph(vectors, k=2, min_similarity=1.1)
+    assert graph["structure_available"] is False
+    assert graph["structure_reason"] == "no_edges"

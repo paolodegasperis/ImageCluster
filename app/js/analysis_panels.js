@@ -120,8 +120,14 @@ function renderSimilar(data) {
         <strong>${escapeHtml(data.query.filename)}</strong>
         ${hasNumber(data.query.cluster) ? `<span class="sq-sub">cluster ${Number(data.query.cluster)}</span>` : ''}
       </div>
-      <button class="btn btn-sm btn-ghost" type="button" id="similarClearBtn"
-              title="Clear these results and remove the highlight from the plot">Clear</button>
+      <div class="sq-actions">
+        <button class="sr-export" type="button" id="similarPdfBtn"
+                title="Save the query and its matches as a PDF, large enough to compare them side by side">PDF</button>
+        <button class="sr-export" type="button" id="similarCsvBtn"
+                title="Save the ranking as a CSV: rank, filename, similarity, cluster and plot coordinates">CSV</button>
+        <button class="btn btn-sm btn-ghost" type="button" id="similarClearBtn"
+                title="Clear these results and remove the highlight from the plot">Clear</button>
+      </div>
     </div>`;
 
   const cards = data.results.map(item => cardMarkup(item, {
@@ -133,6 +139,74 @@ function renderSimilar(data) {
   $('similarResults').style.setProperty('--search-thumb-size', `${state.searchThumbSize}px`);
   wireCards($('similarResults'));
   $('similarClearBtn')?.addEventListener('click', () => clearSimilar());
+  $('similarPdfBtn')?.addEventListener('click', () => exportSimilarPdf(data, $('similarPdfBtn')));
+  $('similarCsvBtn')?.addEventListener('click', () => exportSimilarCsv(data));
+}
+
+// The same contact sheet the graph produces, asking a different question: the
+// query leads, then what the model considers nearest to it, in order.
+async function exportSimilarPdf(data, button) {
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = '...';
+  try {
+    const items = [{
+      relative_path: data.query.relative_path,
+      caption: data.query.filename,
+      detail: 'the query image',
+    }];
+    for (const item of data.results) {
+      items.push({
+        relative_path: item.relative_path,
+        caption: item.filename,
+        detail: `#${item.rank}  ·  similarity ${item.score.toFixed(4)}`
+          + (hasNumber(item.cluster) ? `  ·  cluster ${Number(item.cluster)}` : ''),
+      });
+    }
+    const report = await downloadFromServer('/api/exports/sheet', {
+      projection_path: state.resultPath,
+      title: `Similar to ${data.query.filename}`,
+      subtitle: `${data.count} of ${data.searched} images ranked by similarity`,
+      meta_lines: [
+        `${data.model_label || ''} · ${String(state.resultPath).split('/').pop()}`.replace(/^ · /, ''),
+      ].filter(line => line.trim()),
+      items,
+      filename: exportFilename('similar', data.query.filename, 'pdf'),
+    });
+    const notes = [];
+    if (report.skipped) notes.push(`${report.skipped} missing from img/`);
+    if (report.undersized) notes.push(`${report.undersized} smaller than 500px, shown at their own size`);
+    setText('similarStatus', `${report.included} image${report.included === 1 ? '' : 's'} exported`
+      + (notes.length ? ` · ${notes.join(' · ')}` : '.'));
+  } catch (err) {
+    setText('similarStatus', `PDF export failed: ${err.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
+// The same ranking as numbers, for whatever comes after looking at it.
+// The query is row 0 so the file is self-contained: a ranking without the thing
+// it was ranked against cannot be read back later.
+function exportSimilarCsv(data) {
+  const header = ['rank', 'filename', 'relative_path', 'similarity', 'cluster', 'x', 'y'];
+  const rows = [[
+    0, data.query.filename, data.query.relative_path, '',
+    hasNumber(data.query.cluster) ? Number(data.query.cluster) : '',
+    data.query.x ?? '', data.query.y ?? '',
+  ]];
+  for (const item of data.results) {
+    rows.push([
+      item.rank, item.filename, item.relative_path, item.score.toFixed(6),
+      hasNumber(item.cluster) ? Number(item.cluster) : '',
+      item.x ?? '', item.y ?? '',
+    ]);
+  }
+  const report = saveCsv(header, rows, exportFilename('similar', data.query.filename, 'csv'));
+  setText('similarStatus', report.ok
+    ? `${rows.length} rows exported, query included.`
+    : `CSV export failed: ${report.error}`);
 }
 
 function clearSimilar(redraw = true) {

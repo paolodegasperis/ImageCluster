@@ -12,9 +12,12 @@ def load_local_settings() -> dict:
     if not LOCAL_SETTINGS_PATH.exists():
         return {}
     try:
-        return json.loads(LOCAL_SETTINGS_PATH.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+        settings = json.loads(LOCAL_SETTINGS_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
         return {}
+    # Valid JSON of the wrong shape is not a decode error, and every caller
+    # treats this as a mapping.
+    return settings if isinstance(settings, dict) else {}
 
 
 def save_local_settings(settings: dict) -> None:

@@ -501,3 +501,60 @@ def test_standardise_survives_a_column_with_no_spread():
     """A term every image scores identically must not divide by zero."""
     out = semantic._standardise(np.full(6, 0.3, dtype="float32"))
     assert np.all(np.isfinite(out))
+
+
+# --------------------------------------------------------------------------
+# One corrupt embedding must not poison the answers
+#
+# Every guard in this module compares a magnitude against a threshold, and any
+# comparison against NaN is false. So a single non-finite row used to slip past
+# `if length < 1e-9`, and the caller received a confidently ordered list
+# computed from nothing at all.
+
+
+def _corrupt_one_vector(index: int = 0):
+    embedding = OUTPUT_DIR / "embeddings" / f"{NAME}.npy"
+    vectors = np.load(embedding)
+    vectors[index] = np.nan
+    np.save(embedding, vectors)
+
+
+def test_a_nan_row_does_not_wreck_the_concept_scores(stub_space):
+    _corrupt_one_vector()
+    result = semantic.concept_scores(stub_space["rel"], phrases=["landscape"])
+    assert result["count"] == 6
+    finite = [item["score"] for item in result["scores"] if item["score"] is not None]
+    assert len(finite) == 6
+    # The landscapes must still lead: the corrupt row scores 0, not NaN.
+    assert result["top"][0]["filename"].startswith("landscape")
+
+
+def test_a_nan_row_does_not_silently_empty_the_arithmetic(stub_space):
+    """It used to return count 0 with no explanation - 'nothing matched'."""
+    _corrupt_one_vector()
+    result = semantic.concept_arithmetic(
+        stub_space["rel"], relative_path="img/portrait_plain.jpg", add=["landscape"], top_k=5)
+    assert result["count"] > 0
+    assert all(np.isfinite(item["score"]) for item in result["results"])
+
+
+def test_a_nan_row_does_not_produce_a_ranking_from_nothing(stub_space):
+    _corrupt_one_vector()
+    portraits = [f"img/{n}.jpg" for n in stub_space["names"] if n.startswith("portrait")]
+    landscapes = [f"img/{n}.jpg" for n in stub_space["names"] if n.startswith("landscape")]
+    result = semantic.distinguish(
+        stub_space["rel"], paths_a=portraits, paths_b=landscapes,
+        vocabulary=["portrait", "landscape", "night", "day"], top_k=4)
+    assert np.isfinite(result["centroid_similarity"])
+    assert all(np.isfinite(term["score"]) for term in result["towards_a"])
+    assert all(np.isfinite(term["score"]) for term in result["towards_b"])
+
+
+def test_a_nan_row_keeps_the_axis_preview_plottable(stub_space):
+    _corrupt_one_vector()
+    result = semantic.semantic_axis_preview(
+        stub_space["rel"],
+        x_positive=["portrait"], x_negative=["landscape"],
+        y_positive=["night"], y_negative=["day"])
+    assert result["count"] == 6
+    assert all(np.isfinite(p["x"]) and np.isfinite(p["y"]) for p in result["points"])

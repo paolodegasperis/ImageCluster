@@ -256,7 +256,10 @@ def search_text(req: TextSearchRequest) -> dict:
 def search_rebuild_index(req: RebuildSearchIndexRequest) -> dict:
     if not config_get("semantic_search.enabled", True):
         raise HTTPException(status_code=403, detail="Semantic search is disabled in config.json.")
-    spec = get_model_spec(req.model_key)
+    try:
+        spec = get_model_spec(req.model_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not spec.supports_text_search:
         raise HTTPException(status_code=400, detail="This model can create image projections but does not support text search.")
     projection_req = ClipProjectionRequest(image_dir=req.image_dir, model_key=req.model_key, use_cache=True)
@@ -431,6 +434,28 @@ def lens_page() -> str:
     return _page("lens.html")
 
 
+BRAND_ICON = ROOT / "icone" / "ImageClusetIcon.ico"
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> Response:
+    """The project's own icon, for the tab and for the request browsers make anyway.
+
+    Browsers ask for /favicon.ico on every page whether or not a page declares
+    one, so without this every single page view logged a 404 and the tab showed
+    a blank sheet. The file is the same icon the desktop launcher uses, so the
+    app looks like itself in the tab strip.
+    """
+    if not BRAND_ICON.is_file():
+        # A missing brand asset is not worth a 500; the tab simply stays blank.
+        return Response(status_code=204)
+    return FileResponse(
+        BRAND_ICON,
+        media_type="image/x-icon",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/guide", response_class=HTMLResponse)
 def guide_page() -> str:
     """Plain-language account of what every function tells you, and what it cannot."""
@@ -474,8 +499,10 @@ def export_image_sheet(req: ImageSheetRequest) -> Response:
     """
     if not PDF_AVAILABLE:
         raise HTTPException(status_code=503, detail=PDF_MISSING_MESSAGE)
-    validated_projection(req.projection_path)  # provenance must be a real projection
     try:
+        # Provenance must be a real projection: this path is quoted in the
+        # sheet's heading, and it is caller input like everything else here.
+        validated_projection(req.projection_path)
         result = build_image_sheet(
             title=req.title,
             subtitle=req.subtitle,
@@ -595,16 +622,20 @@ def job_result(job_id: str) -> JSONResponse:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != "completed" or not job.result_path:
         raise HTTPException(status_code=409, detail="Job is not completed")
-    return _read_tsv_result(ROOT / job.result_path, {"job_id": job_id, "result_path": job.result_path})
+    path = ROOT / job.result_path
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="The result file is no longer on disk.")
+    return _read_tsv_result(path, {"job_id": job_id, "result_path": job.result_path})
 
 
 @app.get("/api/projections/read")
 def projection_read(path: str) -> JSONResponse:
     requested = (ROOT / path).resolve()
     output_root = (OUTPUT_DIR / "projections").resolve()
-    if requested != output_root and output_root not in requested.parents:
-        raise HTTPException(status_code=400, detail="Projection path must be inside output/projections/.")
-    if not requested.exists():
+    if requested == output_root or output_root not in requested.parents:
+        raise HTTPException(status_code=400, detail="Projection path must be a file inside output/projections/.")
+    # exists() is true for a directory, and opening one raises rather than 404s.
+    if not requested.is_file():
         raise HTTPException(status_code=404, detail="Projection file not found")
     return _read_tsv_result(requested, {"result_path": requested.relative_to(ROOT).as_posix()})
 
@@ -627,6 +658,8 @@ def job_download(job_id: str) -> FileResponse:
     if job is None or not job.result_path:
         raise HTTPException(status_code=404, detail="Result not found")
     path = ROOT / job.result_path
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="The result file is no longer on disk.")
     return FileResponse(path, filename=path.name, media_type="text/tab-separated-values")
 
 
@@ -636,6 +669,9 @@ def job_log(job_id: str) -> PlainTextResponse:
     if job is None or not job.log_path:
         raise HTTPException(status_code=404, detail="Log not found")
     path = ROOT / job.log_path
+    if not path.is_file():
+        # Logs are pruned by housekeeping while the job is still in memory.
+        raise HTTPException(status_code=404, detail="The log for this job has been pruned.")
     return PlainTextResponse(path.read_text(encoding="utf-8", errors="replace"))
 
 

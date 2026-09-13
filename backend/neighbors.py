@@ -143,10 +143,16 @@ def _graph_structure(count: int, pairs: list[tuple[int, int]], weights: list[flo
         "bridges": [],
         "articulation_points": [],
         "available": False,
+        "reason": None,
     }
     nx = _networkx()
-    if nx is None or not pairs:
-        return empty
+    # Two unrelated causes, and the caller must be able to tell them apart: one
+    # is fixed by installing a package, the other by lowering a threshold. Saying
+    # the wrong one sends the reader to solve a problem they do not have.
+    if nx is None:
+        return {**empty, "reason": "missing_networkx"}
+    if not pairs:
+        return {**empty, "reason": "no_edges"}
 
     graph = nx.Graph()
     graph.add_nodes_from(range(count))
@@ -159,7 +165,7 @@ def _graph_structure(count: int, pairs: list[tuple[int, int]], weights: list[flo
         groups = nx.community.louvain_communities(graph, weight="weight", seed=LOUVAIN_SEED)
         modularity = float(nx.community.modularity(graph, groups, weight="weight"))
     except Exception:
-        return empty
+        return {**empty, "reason": "analysis_failed"}
 
     # Largest community first, so community 0 is the dominant one and the palette
     # assigns its most distinct colour to the group the user notices first.
@@ -185,6 +191,7 @@ def _graph_structure(count: int, pairs: list[tuple[int, int]], weights: list[flo
         "bridges": bridges,
         "articulation_points": articulation,
         "available": True,
+        "reason": None,
     }
 
 
@@ -287,4 +294,5 @@ def build_neighbor_graph(
         "bridges": structure["bridges"],
         "articulation_points": structure["articulation_points"],
         "structure_available": structure["available"],
+        "structure_reason": structure.get("reason"),
     }

@@ -32,6 +32,12 @@ bySelector('[data-dock-toggle]')?.addEventListener('click', event => {
   const dock = bySelector('#projectionDock');
   if (!dock) return;
   dock.classList.toggle('is-expanded');
+  if (dock.classList.contains('is-expanded') && typeof restoreDockHeight === 'function') {
+    restoreDockHeight();
+  } else if (!dock.classList.contains('is-expanded')) {
+    // Collapsing clears the inline basis so the 44px rule applies again.
+    dock.style.flexBasis = '';
+  }
   event.currentTarget.textContent = dock.classList.contains('is-expanded') ? 'Collapse' : 'Expand';
 });
 

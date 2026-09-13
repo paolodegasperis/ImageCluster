@@ -105,11 +105,9 @@ def _prepare(path: Any) -> tuple[Image.Image, bool]:
     invent detail and hide the fact that the source is small, and this document
     exists to be looked at closely.
     """
-    image = Image.open(path)
-    if image.mode not in ("RGB", "L"):
-        image = image.convert("RGB")
-    elif image.mode == "L":
-        image = image.convert("RGB")
+    with Image.open(path) as source:
+        # convert() forces the decode, so the handle can close immediately.
+        image = source.convert("RGB") if source.mode != "RGB" else source.copy()
 
     long_side = max(image.size)
     undersized = long_side < MIN_LONG_SIDE
@@ -215,7 +213,12 @@ def build_image_sheet(
             continue
         try:
             image, small = _prepare(source)
-        except (OSError, ValueError) as exc:
+            # Encode here, inside the guard: PIL is lazy, and for an image that
+            # needed no resize this is the first time the pixels are read.
+            buffer = io.BytesIO()
+            image.save(buffer, format="JPEG", quality=88)
+            buffer.seek(0)
+        except (OSError, ValueError, Image.DecompressionBombError) as exc:
             skipped.append({"relative_path": item.relative_path, "reason": f"unreadable ({exc})"})
             continue
         if small:
@@ -234,9 +237,6 @@ def build_image_sheet(
         offset_x = x + (image_box - draw_w) / 2
         offset_y = row_top + (image_box - draw_h) / 2
 
-        buffer = io.BytesIO()
-        image.save(buffer, format="JPEG", quality=88)
-        buffer.seek(0)
         pdf.image(buffer, x=offset_x, y=offset_y, w=draw_w, h=draw_h)
 
         pdf.set_draw_color(210)

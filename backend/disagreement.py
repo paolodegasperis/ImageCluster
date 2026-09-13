@@ -118,13 +118,38 @@ def model_disagreement(
     sidecar_b = projection_sidecar(path_b) or {}
 
     order = np.argsort(agreement)  # least agreement first
+
+    # Competition ranking: everything on the same score shares a rank.
+    #
+    # Overlap is a count out of k, so it takes only k+1 distinct values and ties
+    # are the rule rather than the exception - on two genuinely different models
+    # dozens of images sit at zero together. Numbering them 1, 2, 3 presented the
+    # tie-break, which is index order and therefore alphabetical, as if it were a
+    # measured ordering, and made the first few look singled out when nothing
+    # distinguishes them from the rest of the tie.
+    ranks: dict[int, int] = {}
+    tie_sizes: dict[int, int] = {}
+    position = 0
+    while position < len(order):
+        score = agreement[order[position]]
+        run = position
+        while run < len(order) and agreement[order[run]] == score:
+            run += 1
+        for offset in range(position, run):
+            ranks[int(order[offset])] = position + 1
+            tie_sizes[int(order[offset])] = run - position
+        position = run
+
     results = []
-    for rank, index in enumerate(order[:top_k], start=1):
+    for index in order[:top_k]:
         index = int(index)
         row = rows_a[index]
         results.append({
             "index": index,
-            "rank": rank,
+            "rank": ranks[index],
+            # How many images hold this exact rank. 1 means the position is the
+            # image's own; more means the order within the group is arbitrary.
+            "tied_with": tie_sizes[index],
             "relative_path": row.get("relative_path", ""),
             "filename": row.get("filename", ""),
             # The shared card contract reads "score"; here a LOW score is the
@@ -145,6 +170,10 @@ def model_disagreement(
         "median_agreement": round(float(np.median(agreement)), 6),
         # Images on which the two models share nothing at all.
         "total_disagreement": int((agreement == 0).sum()),
+        # How many of the returned results share the best (lowest) rank, so the
+        # caller can say "these N are equally far apart" instead of implying an
+        # order that the measurement does not support.
+        "tied_at_top": int(tie_sizes[int(order[0])]) if len(order) else 0,
         "full_agreement": int((agreement == 1).sum()),
         "results": results,
         "agreement": [round(float(value), 6) for value in agreement],

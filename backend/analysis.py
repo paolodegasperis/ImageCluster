@@ -253,11 +253,36 @@ def duplicate_groups(
         if len(indices) < 2:
             continue
         block = unit[indices]
-        sims = block @ block.T
-        # Mean off-diagonal similarity: how alike the group is overall.
-        off_diagonal = sims[~np.eye(len(indices), dtype=bool)]
-        # The member closest to the others is shown first as the one to keep.
-        centrality = sims.sum(axis=1)
+        # Accumulated in row blocks rather than as one (g, g) matrix. A
+        # collection of near-duplicates - video frames, a scan series, a
+        # bracketed set - merges into a single group approaching the 20 000-image
+        # ceiling, where the full matrix plus its boolean mask runs to gigabytes
+        # and raises MemoryError, which no route catches.
+        size = len(indices)
+        centrality = np.empty(size, dtype="float64")
+        total = 0.0
+        weakest = 1.0
+        step = max(1, min(size, 4_000_000 // max(1, size)))
+        for start in range(0, size, step):
+            stop = min(start + step, size)
+            rows_block = block[start:stop] @ block.T
+            centrality[start:stop] = rows_block.sum(axis=1)
+            total += float(rows_block.sum())
+            # The weakest pair decides whether the group was chained together
+            # through intermediaries. The diagonal is 1.0 and would never be the
+            # minimum, but it is masked anyway so a one-member block is right.
+            masked = rows_block.copy()
+            for offset in range(stop - start):
+                masked[offset, start + offset] = np.inf
+            if masked.size:
+                block_min = float(masked.min())
+                if np.isfinite(block_min):
+                    weakest = min(weakest, block_min)
+        # Mean off-diagonal similarity: how alike the group is overall. The
+        # diagonal contributes exactly one per row, so it is subtracted rather
+        # than masked out.
+        pair_count = size * (size - 1)
+        mean_similarity = (total - size) / pair_count if pair_count else 0.0
         order = list(np.argsort(-centrality))
         items = []
         for rank, local in enumerate(order, start=1):
@@ -271,10 +296,9 @@ def duplicate_groups(
                 "most_central": rank == 1,
             })
             items.append(payload)
-        weakest = float(off_diagonal.min()) if off_diagonal.size else 1.0
         groups.append({
             "size": len(indices),
-            "mean_similarity": round(float(off_diagonal.mean()), 6) if off_diagonal.size else 1.0,
+            "mean_similarity": round(mean_similarity, 6) if pair_count else 1.0,
             "min_similarity": round(weakest, 6),
             # Not every member matched every other one directly; they were linked
             # through intermediaries. Review before treating these as duplicates.

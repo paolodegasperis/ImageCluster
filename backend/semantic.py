@@ -37,6 +37,7 @@ import numpy as np
 
 from .encoders.base import encode_texts
 from .encoders.registry import ModelSpec, get_model_spec
+from .neighbors import _sanitize
 from .runtime_dirs import ROOT
 from .views import load_projection, projection_sidecar
 
@@ -66,31 +67,19 @@ DEFAULT_VOCABULARY: tuple[str, ...] = (
 MAX_CONCEPT_TERMS = 12
 MAX_VOCABULARY_TERMS = 300
 
-# How hard a phrase pulls against the starting image in `concept_arithmetic`.
-#
-# Not a taste setting - it corrects a real asymmetry. In a CLIP-like space
-# images and text occupy separate regions (the "modality gap"), and image-image
-# cosines are far more concentrated than image-text ones: on a real collection,
-# 0.41 against 0.18. Adding a unit text vector to a unit image vector therefore
-# barely moves the query, and the answer is just the starting image's nearest
-# neighbours whatever you type.
-#
-# Measured over 25 starting images x 10 terms: at strength 1 only 24% of results
-# differ from those plain neighbours, and the concept lift is 0.5 sigma. At 3 it
-# is 71% and 1.29 sigma, against a ceiling of 1.69 sigma for searching the term
-# alone. Three keeps the starting image clearly in play while letting the words
-# decide the rest.
-DEFAULT_ARITHMETIC_STRENGTH = 3.0
-
-# Cache of the text-side centroid per model: 52 encodes otherwise repeated on
-# every call.
-_TEXT_CENTROIDS: dict[str, np.ndarray] = {}
-
 
 def _unit(matrix: np.ndarray) -> np.ndarray:
+    """L2-normalise, with non-finite rows zeroed first.
+
+    One corrupt embedding otherwise poisons everything downstream in silence:
+    NaN propagates through a centroid, and every guard in this module tests a
+    magnitude against a threshold, which is false for NaN. The caller then gets
+    an ordering computed from nothing rather than an error.
+    """
     values = np.asarray(matrix, dtype="float32")
     if values.ndim == 1:
         values = values.reshape(1, -1)
+    values, _ = _sanitize(values)
     norms = np.linalg.norm(values, axis=1, keepdims=True)
     return values / np.clip(norms, 1e-12, None)
 
@@ -147,22 +136,6 @@ def encode_phrases(spec: ModelSpec, phrases: list[str]) -> np.ndarray:
     if not phrases:
         raise ValueError("No phrase was given.")
     return _unit(encode_texts(phrases, spec, batch_size=min(32, len(phrases))))
-
-
-def _text_centroid(spec: ModelSpec) -> np.ndarray:
-    """Where text sits in this model's space, averaged over the default terms.
-
-    Subtracting it from a phrase removes the part every phrase has in common -
-    "this is a caption" - and leaves what the phrase actually says. Without it
-    the modality gap, which is shared by all text, drowns the difference between
-    one phrase and another.
-    """
-    cached = _TEXT_CENTROIDS.get(spec.key)
-    if cached is None:
-        vectors = encode_phrases(spec, list(DEFAULT_VOCABULARY))
-        cached = vectors.mean(axis=0)
-        _TEXT_CENTROIDS[spec.key] = cached
-    return cached
 
 
 def _pole(spec: ModelSpec, phrases: list[str]) -> np.ndarray:

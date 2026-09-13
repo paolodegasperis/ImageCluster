@@ -152,3 +152,142 @@ def test_many_images_flow_onto_several_pages(images):
 
 def test_the_filename_stamp_is_path_safe():
     assert re.fullmatch(r"\d{8}-\d{4}", px.stamp())
+
+
+# --------------------------------------------------------------------------
+# Over HTTP
+#
+# The module tests above call the builder directly. These cover the route: the
+# contract the browser actually depends on, and the validation that stands
+# between a posted path list and the filesystem.
+
+
+@pytest.fixture
+def client():
+    from fastapi.testclient import TestClient
+
+    from backend import main
+
+    return TestClient(main.app)
+
+
+@pytest.fixture
+def projection():
+    """Any real saved projection: the route checks provenance before building."""
+    from backend.runtime_dirs import PROJECTIONS_DIR
+
+    found = sorted(PROJECTIONS_DIR.glob("*.tsv"))
+    if not found:
+        pytest.skip("no saved projection to attribute the sheet to")
+    return f"output/projections/{found[0].name}"
+
+
+def _payload(projection, items, **extra):
+    return {"projection_path": projection, "title": "Community 1", "items": items, **extra}
+
+
+def test_the_route_returns_a_pdf_as_an_attachment(client, projection, images):
+    response = client.post("/api/exports/sheet", json=_payload(
+        projection, [{"relative_path": images["big"], "caption": "big.jpg"}]))
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert "attachment" in response.headers["content-disposition"]
+    assert response.content.startswith(b"%PDF-")
+
+
+def test_the_route_reports_what_it_could_not_include(client, projection, images):
+    """The browser shows these counts; without them a short sheet looks complete."""
+    response = client.post("/api/exports/sheet", json=_payload(projection, [
+        {"relative_path": images["big"]},
+        {"relative_path": images["tiny"]},
+        {"relative_path": "img/absent.jpg"},
+    ]))
+    assert response.status_code == 200
+    assert response.headers["X-Sheet-Included"] == "2"
+    assert response.headers["X-Sheet-Skipped"] == "1"
+    assert response.headers["X-Sheet-Undersized"] == "1"
+
+
+def test_the_route_refuses_a_path_list_that_escapes_the_image_folder(client, projection):
+    """Every posted path is re-validated; none of these may be read."""
+    response = client.post("/api/exports/sheet", json=_payload(projection, [
+        {"relative_path": "../backend/main.py"},
+        {"relative_path": "img/../../output/local_settings.json"},
+    ]))
+    assert response.status_code == 400
+    assert b"main.py" not in response.content
+
+
+def test_the_route_refuses_a_projection_outside_the_projections_folder(client, images):
+    response = client.post("/api/exports/sheet", json=_payload(
+        "../backend/main.py", [{"relative_path": images["big"]}]))
+    assert response.status_code in (400, 404)
+
+
+def test_the_route_rejects_an_empty_item_list(client, projection):
+    response = client.post("/api/exports/sheet", json=_payload(projection, []))
+    assert response.status_code == 422  # the schema requires at least one
+
+
+def test_the_filename_is_sanitised(client, projection, images):
+    """A filename is user input and ends up in a header."""
+    response = client.post("/api/exports/sheet", json=_payload(
+        projection, [{"relative_path": images["big"]}], filename="../../evil name.pdf"))
+    assert response.status_code == 200
+    disposition = response.headers["content-disposition"]
+    assert ".." not in disposition
+    assert "/" not in disposition.split("filename=")[1]
+
+
+# --------------------------------------------------------------------------
+# Images that fail only when their pixels are read
+#
+# PIL decodes lazily. An image small enough to skip the resize is first touched
+# at save() time, which used to sit outside the per-item guard: identical
+# corruption produced a clean "1 missing" note when the file was large and a
+# 500 when it was small.
+
+
+def test_a_truncated_small_image_is_skipped_not_fatal(request):
+    path = IMG_DIR / f"{PREFIX}_truncated.jpg"
+    Image.new("RGB", (800, 600), (200, 100, 50)).save(path, "JPEG")
+    whole = path.read_bytes()
+    path.write_bytes(whole[: len(whole) // 2])   # header intact, pixels missing
+    request.addfinalizer(lambda: path.unlink(missing_ok=True))
+
+    # Paired with a readable image so the sheet itself can still be produced.
+    good = IMG_DIR / f"{PREFIX}_ok.jpg"
+    Image.new("RGB", (900, 700), (10, 80, 30)).save(good, "JPEG")
+    request.addfinalizer(lambda: good.unlink(missing_ok=True))
+
+    result = px.build_image_sheet(
+        title="T", items=_items(f"img/{PREFIX}_truncated.jpg", f"img/{PREFIX}_ok.jpg"))
+    assert result.included == 1
+    assert len(result.skipped) == 1
+    assert result.skipped[0]["relative_path"].endswith("_truncated.jpg")
+
+
+def test_a_decompression_bomb_is_skipped_not_fatal(request, monkeypatch):
+    """DecompressionBombError descends from Exception, not OSError."""
+    good = IMG_DIR / f"{PREFIX}_bomb.jpg"
+    Image.new("RGB", (900, 700), (10, 80, 30)).save(good, "JPEG")
+    request.addfinalizer(lambda: good.unlink(missing_ok=True))
+
+    real_open = Image.open
+
+    def exploding_open(path, *args, **kwargs):
+        if str(path).endswith("_bomb.jpg"):
+            raise Image.DecompressionBombError("too many pixels")
+        return real_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Image, "open", exploding_open)
+
+    other = IMG_DIR / f"{PREFIX}_plain.jpg"
+    Image.new("RGB", (600, 400), (30, 30, 90)).save(other, "JPEG")
+    request.addfinalizer(lambda: other.unlink(missing_ok=True))
+
+    result = px.build_image_sheet(
+        title="T", items=_items(f"img/{PREFIX}_bomb.jpg", f"img/{PREFIX}_plain.jpg"))
+    assert result.included == 1
+    assert len(result.skipped) == 1
+    assert "too many pixels" in result.skipped[0]["reason"]
