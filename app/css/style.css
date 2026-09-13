@@ -4604,7 +4604,21 @@ body.workflow-page {
   gap: 12px;
 }
 
-.mt-head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mt-head-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* A global `select, input, button { width: 100% }` applies here too, so a button
+   placed in a flex row claims the whole row and pushes its siblings onto the
+   next line. Anchors styled as buttons are unaffected, which is why the problem
+   only appears once a real <button> joins the row. */
+.mt-head-actions .btn {
+  width: auto;
+  flex: 0 0 auto;
+}
 
 /* A community row and its export control. The row itself is a button, so the
    export cannot be nested inside it; they sit side by side instead. */
@@ -4670,4 +4684,77 @@ body.workflow-page {
   align-items: center;
   gap: 6px;
   margin-left: auto;
+}
+
+/* The Italian guide states, at the top, that only the documentation is
+   translated. Without it a reader would expect Italian buttons too. */
+.gd-lang-note {
+  font-size: 14px !important;
+  color: var(--muted) !important;
+  border-left: 2px solid var(--border);
+  padding-left: 12px;
+  margin-top: 18px !important;
+}
+
+.gd-hero [data-lang-switch],
+.topbar [data-lang-switch] {
+  white-space: nowrap;
+}
+
+/* The glossary's language note, with its toggle inline. */
+.gloss-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.gloss-note .btn {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+
+/* ------------------------------------------------------ rows of controls
+   A global `select, input, button { width: 100% }` sits near the top of this
+   file. It suits the narrow rail panels, where a full-width button is the
+   intended shape, but it is wrong in every horizontal row: the first real
+   <button> claims the whole line and pushes its siblings out of sight or
+   squeezes them until their labels wrap.
+
+   This has now caused five separate defects - the dock controls, the export
+   buttons on community rows, the glossary toggle, the language toggle on
+   /models, and the Expand button crushing the dock tabs from 117px to 78px.
+   Anchors styled as .btn are unaffected, which is why the problem only appears
+   once a real button joins the row, and why it kept being rediscovered.
+
+   Rather than narrow the global rule - which would change every full-width
+   button in the app and needs its own pass - the rows declare themselves here. */
+.topbar .btn,
+.dock-bar .btn,
+.dock-controls .btn,
+.mt-head-actions .btn,
+.gloss-note .btn,
+.sq-actions .btn,
+.gi-actions .sr-export,
+.structure-row-wrap .sr-export {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* Tab labels are two words; they must not wrap inside a 32px-tall bar. */
+.dock-tab {
+  white-space: nowrap;
+}
+
+/* The plot toolbar is a vertical column of fixed 32px squares, but its labels
+   are words of different lengths: "reset" needs 42px, "graph" 35, "grid" 34, so
+   three of the ten were clipped. Dropping the fixed width lets the column size
+   itself to the widest label, and flex stretch keeps every button identical. */
+.plot-toolbar button,
+.plot-toolbar .graph-link {
+  width: auto;
+  min-width: 32px;
+  padding: 0 6px;
 }

@@ -305,4 +305,4 @@ Some models require accepting a license on Hugging Face before download. If a mo
 
 ## Version
 
-v6.5.0 · September 2026
+v6.6.0 · September 2026

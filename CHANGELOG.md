@@ -1,5 +1,104 @@
 # Changelog
 
+## v6.6.0 - the documentation in Italian
+
+The explanations are now available in Italian, for a readership of scholars
+rather than developers. **Only the documentation** is translated: the interface
+stays in English, and the Italian text says so in its opening lines rather than
+letting anyone discover it by clicking a button.
+
+| Surface | How |
+|---|---|
+| The guide | a parallel page at `/guide/it`, linked both ways |
+| The graph explanation | both languages in the page, one hidden |
+| The lenses explanation | likewise |
+| The glossary and the notes on `/models` | likewise |
+
+One shared choice, remembered, English by default: picking Italian in the guide
+and then opening a help panel gives Italian, without choosing twice.
+
+Parallel content rather than a branch or a string catalogue. A branch would give
+two builds and no switch at all, and every future fix would have to be applied
+twice, with the Italian copy quietly falling behind the first time a merge was
+forgotten. This is prose with no logic and no interpolation, so a second copy
+costs nothing and cannot drift from any code. English remains the source and the
+fallback.
+
+### The rule that matters most
+
+Inside the Italian text, **the names of things on screen stay in English**: one
+reads *«si apre il pannello Structure»*, never *«il pannello Struttura»*. A guide
+naming buttons that do not exist would be worse than a guide in English.
+`docs/GLOSSARIO_IT.md` records this and the fixed rendering of every recurring
+term, so that four thousand words translated at different moments do not drift
+into three different vocabularies.
+
+The glossary on `/models` keeps its terms in English and translates only the
+definitions, for the same reason.
+
+### Named axes, findable
+
+The feature existed and worked, but nobody could find it. Measured: the
+projection-method control sat at y=887 in a 720px window, inside a rail that
+scrolls 1775px of content through a 372px opening, and the **Preview** button -
+the one action that works on the projection already on screen, in about a
+second - landed at y=1547.
+
+It was also filed inconsistently against its own sibling. Two functions from
+v6.4.0, both optional, both driven by typed phrases, both operating on a loaded
+projection: *Color by a concept* went into the Explore panel, *Named axes* stayed
+at the bottom of the generation rail.
+
+The phrases now live in Explore, next to the concept colouring they belong with,
+and are always available rather than appearing only when the reducer is set to
+semantic - Preview reads whatever projection is on screen, whichever method
+produced it. The reducer option stays in step 3, where generating a projection
+whose coordinates *are* the named axes belongs, and points at the panel. One set
+of fields either way: everything reads them by id, so their location does not
+matter.
+
+Preview moved from y=1547 in a 372px scroll area to y=774 in a 672px one, with
+the heading, the presets and most of the fields in view. The presets now come
+before the fields, which is the order they are used in: one click fills all four.
+
+### Alignment, and the rule behind it
+
+Labels were being cut off and controls squeezed, in two places that turned out
+to have one cause.
+
+In the plot toolbar the buttons were fixed 32px squares while their labels are
+words of different lengths, so **reset** (42px), **graph** (35px) and **grid**
+(34px) were clipped - three of the ten. The column now sizes itself to its
+widest label and flex stretch keeps every button identical.
+
+The dock tabs looked like a tab problem and were not. **Expand**, a real
+`<button>`, was 543px wide in a 912px bar because of the global
+`select, input, button { width: 100% }` rule; that squeezed the tabs from their
+natural 117px down to 78px, which wrapped their two-word labels onto a second
+line, which overflowed the 32px bar. One cause, three visible symptoms.
+
+That rule has now produced six separate defects: the dock controls, the export
+buttons on community rows, the glossary toggle, the language toggle on
+`/models`, the Expand button, and "How to read this" occupying 947px of a 1497px
+topbar on two pages. Anchors styled as buttons are unaffected, which is why it
+only ever appears once a real `<button>` joins a row - and why it kept being
+rediscovered rather than recognised. The four scattered one-off fixes are now a
+single rule that names the trap and lists the rows it applies to.
+
+Narrowing the global rule itself would be the real fix, but it governs every
+full-width button in the rails and deserves its own pass rather than being
+changed in passing.
+
+### Also
+
+`#hfTokenMeta` was briefly made bilingual and then deliberately un-made: the
+script writes live status and error messages into that element, so hiding it in
+Italian would have replaced a real message with a fixed sentence. It is a status
+line, not documentation.
+
+A fourth instance of the global `select, input, button { width: 100% }` rule
+claiming a whole flex row, this time under the new toggle on `/models`.
+
 ## v6.5.0 - results that can leave the screen
 
 Every view in this app is a working instrument, and until now a result could

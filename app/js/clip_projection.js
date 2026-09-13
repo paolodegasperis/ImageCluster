@@ -599,21 +599,55 @@ function applyAxisPreset(name) {
 
 // Semantic axes are a projection method, so they appear where UMAP and t-SNE are
 // chosen and hide again when another method is picked.
+/* The axis phrases serve two purposes, and they used to be filed under only one.
+ *
+ * Generating a projection whose coordinates ARE the named axes is a projection
+ * method, and belongs beside UMAP and t-SNE. But Preview recomputes the layout
+ * of the projection already on screen in about a second, which is a way of
+ * reading a result, not of producing one - the same kind of act as colouring the
+ * plot by a concept, which lives in the Explore panel.
+ *
+ * Keeping the fields in the generation rail meant Preview sat at the bottom of
+ * 1775px of content inside a 372px scroll area: present, working, and
+ * unfindable. The fields now live in Explore, next to their sibling, and the
+ * rail points at them. One set of inputs either way - everything here reads them
+ * by id, so it does not matter which panel holds them.
+ */
 function updateSemanticAxesVisibility() {
   const panel = $('semanticAxes');
-  if (!panel) return;
-  const active = has('reducer') && $('reducer').value === 'semantic';
+  const pointer = $('semanticAxesPointer');
+  const generating = has('reducer') && $('reducer').value === 'semantic';
+
+  // The rail only explains where the fields are, and only when they are about
+  // to be used for a run.
+  if (pointer) pointer.hidden = !generating;
+
+  // In Explore the panel is always available: Preview works on any loaded
+  // CLIP-family projection, whichever reducer produced it.
+  const projection = state.rows.length > 0;
   const selected = has('modelKey') ? state.models.find(m => m.key === $('modelKey').value) : null;
   const textCapable = Boolean(selected && selected.supports_text_search);
-  panel.hidden = !active;
-  if (!active) return;
-  if (has('semanticStatus')) {
+
+  if (panel) panel.hidden = false;
+
+  if (has('semanticPanelStatus')) {
+    const message = !projection
+      ? 'Load or generate a projection first — Preview reuses the one on screen.'
+      : textCapable
+        ? 'Ready. The first run loads the model to encode the axis phrases.'
+        : `${selected ? selected.label : 'This model'} encodes images only, so it has no text side to build axes from. A CLIP-family projection is needed.`;
+    setText('semanticPanelStatus', message);
+    $('semanticPanelStatus').className = `status-banner ${projection && textCapable ? 'ok' : 'idle'}`;
+  }
+  if (has('semanticPreviewBtn')) $('semanticPreviewBtn').disabled = !(projection && textCapable);
+
+  if (generating && has('semanticStatus')) {
     setText('semanticStatus', textCapable
       ? 'Ready. The first run loads the model to encode the axis phrases.'
       : `${selected ? selected.label : 'This model'} encodes images only, so it has no text side to build axes from. Pick a CLIP-family model.`);
     $('semanticStatus').className = `status-banner ${textCapable ? 'ok' : 'warn'}`;
   }
-  if (has('startBtn') && active && !textCapable) $('startBtn').disabled = true;
+  if (has('startBtn') && generating && !textCapable) $('startBtn').disabled = true;
 }
 
 async function startJob() {
@@ -758,6 +792,9 @@ async function ingestRows(rows, resultPath, jobId) {
   renderPlotLegend();
   updateWorkflowState();
   updateGraphLink();
+  // Preview reuses the projection on screen, so whether it can run changes
+  // the moment one arrives.
+  updateSemanticAxesVisibility();
   draw();
   if (state.mode === 'mosaic') loadMosaic(true).then(draw);
 }
@@ -2078,6 +2115,14 @@ if (has('mosaicRecomputeBtn')) $('mosaicRecomputeBtn').addEventListener('click',
 if (has('thumbSize')) $('thumbSize').addEventListener('input', e => { state.thumbSize = Number(e.target.value || 48); draw(); });
 if (has('thumbOpacity')) $('thumbOpacity').addEventListener('input', e => setThumbOpacity(Number(e.target.value) / 100));
 
+document.querySelectorAll('[data-open-semantic-panel]').forEach(button => {
+  button.addEventListener('click', () => {
+    if (typeof openWorkflowDrawer === 'function') openWorkflowDrawer('explore');
+    const heading = $('semanticAxesHeading');
+    if (heading) heading.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+});
+
 document.querySelectorAll('[data-axis-preset]').forEach(button => {
   button.addEventListener('click', () => applyAxisPreset(button.dataset.axisPreset));
 });
@@ -2086,16 +2131,16 @@ document.querySelectorAll('[data-axis-preset]').forEach(button => {
 // so the axes can be tried and adjusted before committing to a full run.
 if (has('semanticPreviewBtn')) $('semanticPreviewBtn').addEventListener('click', async () => {
   if (!state.resultPath) {
-    setText('semanticStatus', 'Load a projection first — the preview reuses its embeddings.');
+    setText('semanticPanelStatus', 'Load a projection first — the preview reuses its embeddings.');
     return;
   }
   const payload = semanticAxisPayload();
   if (!payload.semantic_x_positive.length || !payload.semantic_x_negative.length
       || !payload.semantic_y_positive.length || !payload.semantic_y_negative.length) {
-    setText('semanticStatus', 'Each axis needs a phrase at both ends.');
+    setText('semanticPanelStatus', 'Each axis needs a phrase at both ends.');
     return;
   }
-  setText('semanticStatus', 'Encoding the axes... the first run loads the model.');
+  setText('semanticPanelStatus', 'Encoding the axes... the first run loads the model.');
   try {
     const data = await apiJson('/api/semantic/axis-preview', {
       method: 'POST',
@@ -2110,8 +2155,8 @@ if (has('semanticPreviewBtn')) $('semanticPreviewBtn').addEventListener('click',
     });
     applyAxisPreview(data, payload);
   } catch (err) {
-    setText('semanticStatus', `Preview failed: ${err.message}`);
-    $('semanticStatus').className = 'status-banner warn';
+    setText('semanticPanelStatus', `Preview failed: ${err.message}`);
+    $('semanticPanelStatus').className = 'status-banner warn';
   }
 });
 
@@ -2134,8 +2179,8 @@ function applyAxisPreview(data, payload) {
   const warning = data.independent
     ? ''
     : ` The two axes overlap (${data.axis_overlap.toFixed(2)}), so they measure much the same thing and the plot collapses towards a diagonal — try poles that differ more.`;
-  setText('semanticStatus', `Previewing ${moved} images on your axes.${warning}`);
-  $('semanticStatus').className = `status-banner ${data.independent ? 'ok' : 'warn'}`;
+  setText('semanticPanelStatus', `Previewing ${moved} images on your axes.${warning}`);
+  $('semanticPanelStatus').className = `status-banner ${data.independent ? 'ok' : 'warn'}`;
 }
 
 // --- Concept colouring -----------------------------------------------------

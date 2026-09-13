@@ -173,9 +173,12 @@
       <article class="help-panel" role="dialog" aria-modal="true" aria-labelledby="graphHelpTitle">
         <header class="help-head">
           <h2 id="graphHelpTitle">How the neighbor graph works</h2>
+          <button class="btn btn-sm btn-ghost" type="button" data-help-lang-toggle
+                  title="This explanation is available in Italian. The interface itself stays in English.">Italiano</button>
           <button class="btn btn-icon btn-ghost btn-sm" type="button" data-close-help aria-label="Close">&times;</button>
         </header>
         <div class="help-body">
+          <div data-help-lang="en">
 
           <section>
             <h3>What it answers</h3>
@@ -328,11 +331,181 @@
               and reported in the status message.</li>
             </ul>
           </section>
+          </div>
 
+          <div data-help-lang="it" hidden>
+          <section>
+            <h3>A che cosa risponde</h3>
+            <p>
+              Il grafico a dispersione risponde alla domanda <em>dove si colloca questa immagine nella collezione
+              nel suo insieme</em>. Non può rispondere in modo attendibile a <em>a quali immagini questa è
+              davvero più prossima</em>, perché ridurre a due dimensioni un embedding che ne ha 512 o 1024
+              impone di buttare via informazione. Due opere possono finire l'una accanto all'altra sulla mappa
+              senza somigliarsi affatto, semplicemente perché la proiezione non aveva altro posto dove metterle.
+            </p>
+            <p>
+              Questa vista calcola le relazioni <strong>prima</strong> di quell'appiattimento. Ogni immagine viene
+              confrontata con tutte le altre nello spazio proprio del modello, e collegata a quelle che più le
+              corrispondono. Una linea qui significa che il modello considera davvero affini quelle due immagini.
+            </p>
+          </section>
+
+          <section>
+            <h3>Come viene costruito</h3>
+            <ol class="help-steps">
+              <li><strong>Caricamento dei vettori.</strong> Il grafo riusa il file di embedding da cui è stata
+              ricavata la proiezione selezionata. Nulla viene ricodificato e nessun modello viene caricato: è per
+              questo che impiega circa un secondo.</li>
+              <li><strong>Confronto di tutto con tutto.</strong> La similarità è il coseno fra due vettori: 1,0
+              significa direzione identica, 0 significa nessuna relazione. È la stessa misura che usa la ricerca
+              testuale.</li>
+              <li><strong>Si conservano i primi k per immagine.</strong> Ogni immagine propone un collegamento
+              verso le k a cui più corrisponde.</li>
+              <li><strong>Le coppie vengono fuse.</strong> Se A ha scelto B e B ha scelto A, quello è un
+              collegamento solo, contrassegnato come <em>mutual</em> e disegnato un po' più marcato. Un
+              collegamento proposto da una sola parte è disegnato più tenue.</li>
+              <li><strong>Si applicano i filtri</strong> &mdash; la soglia di similarità e l'interruttore che
+              tiene i soli reciproci &mdash; e si stabilisce poi quali immagini siano rimaste connesse a quali.</li>
+            </ol>
+          </section>
+
+          <section>
+            <h3>Community: come si divide la collezione</h3>
+            <p>
+              Le <strong>componenti connesse</strong> separano soltanto le immagini fra cui non esiste alcun
+              percorso. Non appena k è abbastanza alto quasi tutto finisce in un'unica componente, e colorare
+              secondo quella non dice nulla: un colore solo per l'intero schermo.
+            </p>
+            <p>
+              Le <strong>community</strong> rispondono alla domanda a cui le componenti non possono rispondere.
+              L'algoritmo (Louvain) cerca gruppi i cui membri si collegano fra loro molto più di quanto si
+              colleghino verso l'esterno, e continua a raffinare la divisione finché nessuno spostamento la
+              migliora. Opera dentro un grafo interamente connesso, e divide quindi la collezione anche quando
+              ogni immagine è raggiungibile da ogni altra.
+            </p>
+            <p>
+              <strong>Che cosa se ne ricava.</strong> Questo è il parere che il grafo stesso ha su come sia
+              organizzata la collezione, raggiunto senza la proiezione bidimensionale e senza K-Means. La parte
+              utile è il confronto con i colori dei cluster: dove i due concordano il raggruppamento è solido,
+              dove dissentono la proiezione o il clustering ha deformato qualcosa. Il dato di <em>modularity</em>
+              dice quanto la divisione sia netta &mdash; all'incirca, sotto lo 0,3 la collezione è piuttosto
+              omogenea e i gruppi sono deboli, sopra lo 0,5 sono nettamente distinti. Le community cambiano anche
+              al variare di k e della soglia di similarità, il che è a sua volta istruttivo: una divisione che
+              sopravvive a un intervallo di impostazioni è una divisione reale.
+            </p>
+          </section>
+
+          <section>
+            <h3>Ponti e immagini che tengono insieme il grafo</h3>
+            <p>
+              Un <strong>ponte</strong> è un collegamento la cui rimozione spezzerebbe il grafo in due. È la
+              connessione singola che tiene insieme due gruppi, e in una collezione segnala di norma l'opera che
+              appartiene a entrambi i mondi &mdash; il paesaggio con una figura dentro, il disegno che condivide
+              la tecnica con un gruppo e il soggetto con un altro. I ponti sono disegnati più marcati e in un
+              colore distinto, ed elencati nel pannello <strong>Structure</strong>.
+            </p>
+            <p>
+              Un <strong>punto di articolazione</strong> è la stessa idea applicata a un'immagine anziché a un
+              collegamento: si rimuove quella singola opera e il grafo si disgrega. Quelle immagini sono
+              contrassegnate da un anello. Entrambi sono calcolati in modo esatto, non stimato, ed entrambi
+              cambiano al variare di k e della soglia.
+            </p>
+          </section>
+
+          <section>
+            <h3>Tensione della proiezione: dove la mappa mente</h3>
+            <p>
+              Nella disposizione <strong>Projection coordinates</strong> ogni collegamento porta con sé due
+              misure che dovrebbero concordare: quanto le due immagini distino sullo schermo, e quanto il modello
+              le dica simili. Colorando gli archi secondo la <em>projection stress</em>, quelli caldi sono i
+              collegamenti in cui le due misure divergono di più &mdash; immagini fortemente simili che la
+              proiezione ha allontanato.
+            </p>
+            <p>
+              Sono esattamente i punti in cui il grafico a dispersione induce in errore, e sono inevitabili:
+              qualunque proiezione da centinaia di dimensioni a due deve rompere alcune relazioni. Questo mostra
+              soltanto quali, così da sapere dove non fidarsi della mappa.
+            </p>
+          </section>
+
+          <section>
+            <h3>Leggere la figura</h3>
+            <ul class="help-list">
+              <li><strong>Un nodo fitto</strong> è un insieme di opere che il modello giudica intercambiabili: una
+              serie, un gruppo di varianti, o dei duplicati.</li>
+              <li><strong>Un centro</strong> &mdash; un nodo su cui convergono molti collegamenti &mdash; è un
+              esempio tipico e rappresentativo del proprio gruppo. Per trovarli in fretta si colora per
+              <strong>Degree</strong>.</li>
+              <li><strong>Un ponte</strong> &mdash; un collegamento singolo che unisce due nodi altrimenti separati
+              &mdash; è spesso la cosa più interessante sullo schermo: l'opera che connette due mondi visivi.</li>
+              <li><strong>Un nodo isolato</strong> non ha più alcun collegamento dopo il filtraggio. È
+              un'anomalia: nient'altro nella collezione gli è vicino.</li>
+              <li><strong>Isole separate</strong> (componenti) indicano che la collezione si divide realmente in
+              gruppi che a questo valore di k non condividono nulla.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Come le impostazioni cambiano ciò che si vede</h3>
+            <dl class="help-defs">
+              <dt>Neighbours per image (k)</dt>
+              <dd>Il controllo di gran lunga più importante. A k=1 si vede soltanto la corrispondenza migliore di
+              ciascuna immagine e il grafo si spezza in molte coppie. A k=10 quasi tutto si salda in un'unica
+              massa. Conviene alzarlo finché non affiora la struttura che interessa, e poi fermarsi.</dd>
+
+              <dt>Minimum similarity</dt>
+              <dd>Taglia i collegamenti sotto un livello di confidenza. Serve quando il grafo è un groviglio: si
+              alza la soglia finché sopravvivono soltanto le relazioni che si sarebbe disposti a difendere. Le
+              immagini a cui vengono tagliati tutti i collegamenti restano isolate.</dd>
+
+              <dt>Only reciprocal edges</dt>
+              <dd>k obbliga ogni immagine a sceglierne qualcuna, anche un'anomalia che non ha vicini reali.
+              Esigere che entrambe le parti si siano scelte elimina quelle congetture unilaterali.</dd>
+
+              <dt>Layout</dt>
+              <dd><em>Projection coordinates</em> tiene ogni nodo dove lo ha messo la mappa bidimensionale, così
+              da vedere direttamente dove la mappa inganna: collegamenti lunghi significano che la proiezione ha
+              separato immagini che il modello considera vicine. <em>Force-directed</em> ignora la mappa e lascia
+              che siano i collegamenti a disporsi, il che è preferibile per cogliere la struttura dei gruppi nei
+              suoi termini propri.</dd>
+
+              <dt>Color nodes by</dt>
+              <dd><em>Component</em> mostra il raggruppamento proprio del grafo. <em>Cluster</em> mostra le
+              etichette di K-Means provenienti dalla proiezione &mdash; dove i due dissentono, uno dei due sbaglia
+              sulla collezione. <em>Degree</em> ombreggia i centri con toni caldi e i nodi periferici con toni
+              freddi.</dd>
+            </dl>
+          </section>
+
+          <section>
+            <h3>Interagire</h3>
+            <p>
+              <strong>Selezionando un nodo</strong> tutto si attenua tranne il suo vicinato; il pannello di destra
+              elenca i vicini ordinati per similarità, e selezionandone uno vi si salta.
+              <strong>La rotellina</strong> ingrandisce verso il cursore, <strong>il trascinamento</strong> sposta
+              la vista. <span class="kbd">F</span> inquadra il grafo, <span class="kbd">R</span> azzera la vista,
+              <span class="kbd">B</span> lo ricostruisce e <span class="kbd">Esc</span> annulla la selezione.
+            </p>
+          </section>
+
+          <section>
+            <h3>Limiti da conoscere</h3>
+            <ul class="help-list">
+              <li>Il limite è di 5000 immagini. Oltre quella soglia conviene costruire il grafo da una
+              sottocartella, oppure usare il mosaico a griglia.</li>
+              <li>La similarità vale quanto vale il modello che ha prodotto gli embedding. Una proiezione
+              <strong>Visual Features</strong> raggruppa per colore e tessitura; una proiezione CLIP raggruppa per
+              soggetto.</li>
+              <li>Un'immagine il cui vettore di embedding è inutilizzabile viene mantenuta al suo posto ma
+              trattata come priva di relazioni con qualsiasi altra, e segnalata nel messaggio di stato.</li>
+            </ul>
+          </section>
+          </div>
         </div>
       </article>
     </div>
   </main>
+  <script src="/static/js/help_language.js"></script>
   <script src="/static/js/download_helpers.js"></script>
   <script src="/static/js/neighbor_graph.js"></script>
 </body>

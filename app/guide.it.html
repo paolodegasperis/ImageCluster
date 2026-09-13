@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Che cosa si può scoprire - ImageCluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    /* Scoped to this page: a reading layout, not a workspace. */
+    .guide-page { background: var(--bg); color: var(--ink); }
+    .gd-shell { max-width: 1180px; margin: 0 auto; padding: 0 24px 96px; }
+    .gd-hero { padding: 56px 0 32px; max-width: 760px; }
+    .gd-hero h1 { font-size: 34px; line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.02em; }
+    .gd-hero p { font-size: 17px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 14px; }
+
+    .gd-toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 8px; }
+    .gd-toc a {
+      font-size: 13px; padding: 6px 12px; border: 1px solid var(--border);
+      border-radius: 999px; background: var(--surface); color: var(--ink-soft); text-decoration: none;
+    }
+    .gd-toc a:hover { border-color: var(--accent); color: var(--accent-ink); }
+
+    .gd-section { padding-top: 48px; scroll-margin-top: 24px; }
+    .gd-section > h2 {
+      font-size: 13px; text-transform: uppercase; letter-spacing: .09em;
+      color: var(--muted); margin: 0 0 6px; font-weight: 600;
+    }
+    .gd-section > .gd-lead { font-size: 16px; line-height: 1.6; color: var(--ink-soft); max-width: 760px; margin: 0 0 22px; }
+
+    .gd-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
+    .gd-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      padding: 22px 22px 20px; box-shadow: var(--shadow-sm);
+    }
+    .gd-card h3 { font-size: 17px; margin: 0 0 4px; letter-spacing: -0.01em; }
+    .gd-where { font-size: 12px; color: var(--muted); font-family: var(--font-mono); margin: 0 0 12px; }
+    .gd-card p { font-size: 14.5px; line-height: 1.62; color: var(--ink-soft); margin: 0 0 11px; }
+    .gd-card p:last-child { margin-bottom: 0; }
+    .gd-q {
+      font-size: 15px; font-style: italic; color: var(--ink);
+      border-left: 3px solid var(--accent); padding-left: 12px; margin: 0 0 13px;
+    }
+    .gd-limit {
+      font-size: 13.5px; line-height: 1.55; color: var(--ink-soft);
+      background: var(--surface-inset); border-radius: var(--radius-sm);
+      padding: 11px 13px; margin-top: 13px;
+    }
+    .gd-limit strong { color: var(--ink); }
+
+    .gd-note {
+      max-width: 760px; margin: 40px 0 0; padding: 22px 24px;
+      border: 1px solid var(--border); border-left: 3px solid var(--warn);
+      border-radius: var(--radius); background: var(--surface);
+    }
+    .gd-note h3 { font-size: 16px; margin: 0 0 10px; }
+    .gd-note p, .gd-note li { font-size: 14.5px; line-height: 1.62; color: var(--ink-soft); }
+    .gd-note ul { margin: 10px 0 0; padding-left: 20px; }
+    .gd-note li { margin-bottom: 7px; }
+  </style>
+</head>
+<body class="redesign guide-page" data-density="cozy">
+  <main data-screen-label="05 Guida">
+    <header class="topbar">
+      <div class="brand-mark">P</div>
+      <strong>Projector</strong>
+      <a href="/">Dashboard</a>
+      <span>/</span>
+      <strong>Che cosa si può scoprire</strong>
+      <span class="topbar-spacer"></span>
+      <a class="btn btn-sm btn-ghost" href="/guide" data-lang-switch>Guide in English</a>
+      <a class="btn btn-sm btn-ghost" href="/clip">Start a projection</a>
+    </header>
+
+    <div class="gd-shell">
+
+      <section class="gd-hero">
+        <h1>Che cosa si può scoprire di una collezione</h1>
+        <p>
+          Alla base questo programma fa una cosa sola: chiede a un modello preaddestrato di guardare ciascuna
+          immagine e di descriverla come una lunga lista di numeri. Immagini che il modello giudica simili
+          ricevono numeri simili. Tutto il resto &mdash; ogni mappa, ogni raggruppamento, ogni classifica &mdash;
+          è un modo diverso di interrogare quell'unica lista.
+        </p>
+        <p>
+          Questa pagina spiega in termini piani che cosa rivela ciascuna funzione, quando conviene ricorrervi e
+          che cosa non può fare. Nessuna funzione qui è magica, e diverse si prestano a essere fraintese: dove
+          accade, è detto.
+        </p>
+        <p class="gd-lang-note">
+          La documentazione è in italiano; l'interfaccia resta in inglese. I nomi dei pannelli e dei controlli
+          sono perciò citati nella forma in cui compaiono sullo schermo, così da poterli ritrovare.
+        </p>
+        <nav class="gd-toc">
+          <a href="#map">La mappa</a>
+          <a href="#groups">Gruppi e ordine</a>
+          <a href="#find">Trovare</a>
+          <a href="#graph">Il grafo</a>
+          <a href="#words">Domande in parole</a>
+          <a href="#honest">Che cosa non può fare</a>
+        </nav>
+      </section>
+
+      <!-- ------------------------------------------------------------ map -->
+      <section class="gd-section" id="map">
+        <h2>La mappa</h2>
+        <p class="gd-lead">
+          Il modello descrive ogni immagine con centinaia di numeri. Uno schermo ha due dimensioni. Tutto ciò che
+          segue è un modo diverso di schiacciare le prime nelle seconde &mdash; e ogni modo perde qualcosa di
+          diverso.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>Grafico a dispersione (UMAP / t-SNE)</h3>
+            <p class="gd-where">Embedding Projection</p>
+            <p class="gd-q">«Quali delle mie immagini il modello giudica affini?»</p>
+            <p>
+              Ogni punto è un'immagine, collocata in modo che le immagini giudicate simili finiscano vicine. I
+              nodi densi sono insiemi che il modello legge come variazioni di una stessa cosa; lo spazio vuoto
+              fra due nodi significa che vi coglie una differenza reale.
+            </p>
+            <p>
+              È la vista da cui partire. Attivando le miniature i gruppi si leggono direttamente: di norma bastano
+              pochi secondi per riconoscere che cosa accomuna un cluster.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> I due assi non significano nulla. Da sinistra a destra non
+              è una grandezza, e nemmeno dal basso verso l'alto: sono soltanto le direzioni lungo cui l'algoritmo
+              si è trovato a schiacciare. Le distanze fra punti vicini sono abbastanza attendibili; quelle fra
+              punti lontani non lo sono.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Assi nominati</h3>
+            <p class="gd-where">Embedding Projection &middot; facoltativo</p>
+            <p class="gd-q">«Dove si colloca ciascuna immagine fra <em>questa</em> idea e <em>quella</em>?»</p>
+            <p>
+              Invece di lasciare che sia l'algoritmo a scegliere gli assi, li si scrive. Si digita «a portrait of
+              a person» a un capo e «a landscape» all'altro, si fa lo stesso per l'asse verticale, e la collezione
+              viene disposta su due scale che si sono nominate e che si possono leggere.
+            </p>
+            <p>
+              È la risposta all'obiezione precedente. Qui una posizione <em>significa</em> qualcosa: un'immagine a
+              metà altezza sta davvero a metà strada fra le due idee indicate, per quanto ne giudica il modello.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> Se i due assi descrivono cose affini, tutto collassa su una
+              diagonale e il grafico non dice nulla. Il programma lo misura e avvisa quando accade.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Mosaico a griglia</h3>
+            <p class="gd-where">Embedding Projection &middot; modo di visualizzazione</p>
+            <p class="gd-q">«Vorrei vedere davvero ogni immagine, senza che si coprano a vicenda.»</p>
+            <p>
+              Il difetto peggiore del grafico a dispersione è accatastare le immagini proprio dove sono più
+              interessanti. Il mosaico assegna a ciascuna una cella uguale in una griglia, tenendo vicine le
+              immagini simili per quanto una griglia lo consenta.
+            </p>
+            <p>
+              Conviene quando si vuole scorrere anziché misurare: è la vista migliore per accorgersi di qualcosa a
+              occhio nell'insieme della collezione.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> La griglia deve deformare le distanze per far stare tutto
+              in celle uguali. La vicinanza resta significativa; gli scarti esatti no.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Colorazione per concetto</h3>
+            <p class="gd-where">Embedding Projection &middot; facoltativo</p>
+            <p class="gd-q">«In quali punti della collezione ricorre <em>questa idea</em>?»</p>
+            <p>
+              Si digita una frase &mdash; «a ruin», «night», «strong contrast» &mdash; e ogni immagine viene
+              ombreggiata secondo quanto il modello ve ne riconosce. I colori freddi indicano il minimo, i caldi
+              il massimo.
+            </p>
+            <p>
+              È una domanda diversa dalla ricerca. La ricerca restituisce le prime trenta; questa mostra la
+              <em>distribuzione</em> dell'idea. Si può scoprire che è ripartita in modo uniforme fra due cluster,
+              oppure concentrata in un angolo di un gruppo solo &mdash; cosa che la ricerca non avrebbe mai
+              rivelato.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> I colori sono relativi alla collezione, non assoluti.
+              L'immagine più rossa è quella più X <em>qui dentro</em>, il che in una collezione priva di X
+              continua a significare ben poco.
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- --------------------------------------------------------- groups -->
+      <section class="gd-section" id="groups">
+        <h2>Gruppi e ordine</h2>
+        <p class="gd-lead">
+          Quattro analisi che percorrono i numeri già calcolati e rispondono con un elenco anziché con
+          un'immagine.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>Cluster</h3>
+            <p class="gd-where">Embedding Projection</p>
+            <p class="gd-q">«Dividi la collezione in gruppi.»</p>
+            <p>
+              La collezione viene ripartita in un numero di gruppi stabilito da chi la esamina, ciascuno con un
+              centro. Per ogni gruppo il programma può mostrare l'immagine più tipica &mdash; quella più vicina a
+              quel centro &mdash; e quanto il gruppo sia compatto.
+            </p>
+            <p>
+              Un gruppo compatto è un tema reale. Uno lasco è di solito un contenitore di scarti: vi sono finite
+              insieme le immagini che non appartenevano a nessun altro luogo.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> Questo metodo restituisce sempre esattamente il numero di
+              gruppi richiesto, che la collezione ne contenga o no. È il dato di coesione a dire se un gruppo sia
+              reale.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Duplicati e quasi-duplicati</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis</p>
+            <p class="gd-q">«Ho la stessa immagine due volte?»</p>
+            <p>
+              Individua le immagini che il modello giudica pressoché identiche e le raggruppa. Coglie ciò che un
+              confronto fra file non vede: la stessa opera riacquisita, ritagliata, con un altro bilanciamento
+              cromatico o salvata a dimensione diversa.
+            </p>
+            <p>
+              I gruppi sono elencati a partire dai più sicuri, e un gruppo formato per concatenamento (A somiglia
+              a B, B somiglia a C, ma A e C non sono mai stati confrontati direttamente) viene segnalato come tale,
+              perché sono quelli da verificare a occhio.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> «Pressoché identiche per il modello» può voler dire due
+              opere realmente diverse di una stessa serie. Conviene sempre guardare prima di eliminare alcunché.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Anomalie</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis</p>
+            <p class="gd-q">«Che cosa qui dentro non sta con il resto?»</p>
+            <p>
+              Ogni immagine viene ordinata in base a quanto dista dai propri vicini più prossimi. In cima a quella
+              classifica stanno le immagini con meno compagnia.
+            </p>
+            <p>
+              In pratica questo porta a galla due cose utili insieme: le opere realmente insolite e gli errori
+              &mdash; l'acquisizione riuscita male, il file che non fa parte della collezione, la pagina bianca.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> Essere un'anomalia non dice nulla sulla qualità né
+              sull'interesse. Dice soltanto che nient'altro qui dentro le somiglia molto.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Confronto fra due immagini</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis</p>
+            <p class="gd-q">«Quanto sono davvero imparentate queste due?»</p>
+            <p>
+              Un numero di similarità isolato è quasi privo di significato: se 0,72 sia alto dipende interamente
+              dal modello e dalla collezione. Il confronto aggiunge perciò del contesto: in che posizione ciascuna
+              immagine compare nell'elenco dei vicini dell'altra, e dove si collochi quella coppia fra tutte le
+              coppie della collezione.
+            </p>
+            <p>
+              Il caso rivelatore è la coppia asimmetrica: A considera B fra i propri parenti più stretti mentre B
+              quasi non si accorge di A. Di norma significa che A è insolita e B è invece affine a molte.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ----------------------------------------------------------- find -->
+      <section class="gd-section" id="find">
+        <h2>Trovare</h2>
+        <p class="gd-lead">
+          I modelli della famiglia CLIP sono stati addestrati su immagini accompagnate dalle rispettive didascalie,
+          e collocano perciò un'immagine e una sua descrizione nello stesso punto. È ciò che rende possibili le due
+          funzioni seguenti.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>Ricerca per descrizione</h3>
+            <p class="gd-where">Embedding Projection</p>
+            <p class="gd-q">«Mostrami le immagini che corrispondono a questa descrizione.»</p>
+            <p>
+              Si digita ciò che si cerca in lingua corrente &mdash; «a stormy sea at night», «two people arguing»
+              &mdash; e la collezione viene ordinata rispetto a quella frase. Non occorre aver etichettato né
+              catalogato nulla in precedenza.
+            </p>
+            <p>
+              Funziona meglio con frasi descrittive piane. Nomi propri, date, autori e termini tecnici della
+              storia dell'arte di norma falliscono, perché le didascalie da cui il modello ha imparato quasi mai
+              li contenevano.
+            </p>
+          </article>
+
+          <article class="gd-card">
+            <h3>Immagini simili</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis</p>
+            <p class="gd-q">«Altre come questa.»</p>
+            <p>
+              Si sceglie un'immagine qualsiasi e se ne ottengono i parenti più stretti, in ordine. La misura è
+              presa nello spazio completo dei numeri, non sulla mappa appiattita: è quindi più attendibile del
+              giudicare da ciò che sul grafico appare vicino.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- graph -->
+      <section class="gd-section" id="graph">
+        <h2>Il grafo</h2>
+        <p class="gd-lead">
+          Una vista separata che traccia un collegamento fra ciascuna immagine e la manciata a cui è realmente più
+          prossima. Poiché i collegamenti sono calcolati nello spazio completo, il grafo sa cose che la mappa
+          appiattita non può mostrare.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>Community</h3>
+            <p class="gd-where">Neighbor graph &middot; Structure</p>
+            <p class="gd-q">«Come è organizzata la collezione, stando ai collegamenti stessi?»</p>
+            <p>
+              L'algoritmo cerca insiemi di immagini che si collegano fra loro molto più di quanto si colleghino
+              verso l'esterno, e continua a raffinare finché nessuno spostamento singolo migliora la divisione.
+              Selezionando una community il grafo mostra quel solo gruppo.
+            </p>
+            <p>
+              Il valore sta nel fatto che questo è un <em>secondo parere, indipendente</em>. Vi si arriva senza la
+              mappa bidimensionale e senza il numero di cluster che si era scelto. Quando concorda con i cluster,
+              il raggruppamento è solido; quando dissente, una delle due cose ha deformato qualcosa e conviene
+              stabilire quale.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> Il dato di <em>modularity</em> dice quanto la divisione sia
+              netta. Sotto lo 0,3 circa la collezione è piuttosto uniforme e le community sono deboli; sopra lo
+              0,5 i gruppi sono nettamente distinti.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Ponti e immagini portanti</h3>
+            <p class="gd-where">Neighbor graph &middot; Structure</p>
+            <p class="gd-q">«Che cosa tiene insieme due gruppi?»</p>
+            <p>
+              Un ponte è un collegamento singolo la cui rimozione spezzerebbe il grafo in due. Un'immagine portante
+              è un'immagine la cui rimozione farebbe lo stesso. Entrambi sono disegnati in ambra.
+            </p>
+            <p>
+              Sono spesso le immagini più interessanti di una collezione: l'opera che appartiene a due mondi
+              insieme, ed è l'unica cosa che li collega.
+            </p>
+          </article>
+
+          <article class="gd-card">
+            <h3>Collegamenti che smascherano la mappa</h3>
+            <p class="gd-where">Neighbor graph &middot; colore dei collegamenti</p>
+            <p class="gd-q">«Dove la mappa piatta mi sta mentendo?»</p>
+            <p>
+              Ogni collegamento porta con sé due numeri che dovrebbero concordare: quanto è lungo sullo schermo e
+              quanto le due immagini siano realmente simili. Colorare i collegamenti secondo il disaccordo fra i
+              due trasforma il grafo in una verifica della proiezione.
+            </p>
+            <p>
+              I collegamenti caldi sono immagini fortemente affini che la mappa ha allontanato &mdash; esattamente
+              i punti in cui fidarsi del grafico a dispersione porterebbe fuori strada.
+            </p>
+          </article>
+
+          <article class="gd-card">
+            <h3>Centri e immagini isolate</h3>
+            <p class="gd-where">Neighbor graph</p>
+            <p class="gd-q">«Attorno a quali immagini si addensa tutto il resto?»</p>
+            <p>
+              Colorare i nodi secondo il numero di collegamenti mostra i centri di gravità della collezione. Un
+              centro è un'immagine che molte altre considerano fra le proprie più prossime; un nodo isolato è
+              un'immagine che nessuno raggiunge.
+            </p>
+            <p>
+              Il numero di vicini per immagine (k) è il controllo che qui pesa di più. Valori bassi frammentano la
+              collezione in schegge; valori alti fondono tutto in un'unica massa. Conviene alzarlo finché non
+              affiora la struttura che interessa.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ---------------------------------------------------------- words -->
+      <section class="gd-section" id="words">
+        <h2>Domande in parole</h2>
+        <p class="gd-lead">
+          Tre funzioni che rispondono con il linguaggio o con un confronto, anziché con un'immagine della
+          collezione. Vivono in una vista propria perché sono una specie diversa di domanda.
+        </p>
+
+        <div class="gd-cards">
+          <article class="gd-card">
+            <h3>Che cosa separa due gruppi</h3>
+            <p class="gd-where">Lenses</p>
+            <p class="gd-q">«Vedo che questi due gruppi differiscono. In che modo?»</p>
+            <p>
+              Si prendono due insiemi di immagini &mdash; due cluster, oppure le più e le meno «X» della collezione
+              &mdash; e il programma riporta la differenza fra loro come un elenco di parole: questi termini
+              pendono verso A, questi verso B.
+            </p>
+            <p>
+              Tutto ciò che i due gruppi hanno in comune si elide, ed è questo a rendere utile la risposta: nomina
+              ciò che li <em>separa</em>, non ciò che sono.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> Due cose. La risposta può attingere soltanto alle parole
+              dell'elenco di vocabolario, e il modello sceglierà sempre il termine più prossimo fra quelli offerti
+              anche quando nessuno è pertinente &mdash; conviene perciò adattare quell'elenco alla propria
+              collezione. E va guardata la <em>centroid similarity</em> riportata insieme al risultato: se i due
+              gruppi quasi coincidono, un lungo elenco di parole distintive significa ben poco.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Aritmetica dei concetti</h3>
+            <p class="gd-where">Lenses</p>
+            <p class="gd-q">«Immagini come questa, ma più X e meno Y.»</p>
+            <p>
+              Si parte da un'immagine, si aggiunge un'idea, se ne sottrae un'altra, e la collezione viene ordinata
+              rispetto al risultato. Il cursore <em>idea strength</em> decide l'equilibrio: a zero si ottengono
+              semplicemente i vicini dell'immagine di partenza, e alzandolo sono le parole a prendere il
+              sopravvento.
+            </p>
+            <p>
+              I punteggi sono espressi in deviazioni standard anziché come similarità, perché ciò che viene
+              combinato è quanto ciascuna immagine si collochi al di sopra della media della collezione su ciascun
+              termine &mdash; l'unica scala su cui un'immagine e una frase possano essere sommate lealmente.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> È uno strumento per pensare, non un'operazione affidabile.
+              Lo spazio codifica didascalie raccolte dal web, non una grammatica. Funziona abbastanza spesso da
+              risultare illuminante e fallisce abbastanza spesso da imporre di guardare sempre che cosa torna
+              indietro.
+            </div>
+          </article>
+
+          <article class="gd-card">
+            <h3>Dove due modelli dissentono</h3>
+            <p class="gd-where">Lenses</p>
+            <p class="gd-q">«Quali immagini presentano uno scarto fra il soggetto e la maniera?»</p>
+            <p>
+              Si elabora la stessa cartella due volte, una con un modello della famiglia CLIP e una con DINOv2. Il
+              primo raggruppa le immagini per ciò che <em>mostrano</em>; il secondo per come <em>appaiono</em>.
+              Poi si confrontano i due esiti.
+            </p>
+            <p>
+              Nessuno dei due sbaglia &mdash; rispondono a domande diverse &mdash; e le immagini che collocano in
+              modo più divergente sono il residuo interessante: un paesaggio dipinto come un ritratto, una scena
+              sacra trattata come genere quotidiano. <strong>Nessuno dei due modelli può indicarle da solo</strong>,
+              perché ciascuno vede unicamente la propria risposta. Questa informazione non esiste in nessun luogo
+              se non nel confronto.
+            </p>
+            <div class="gd-limit">
+              <strong>Da leggere con cautela.</strong> Il confronto è condotto sui vicinati, non sulle posizioni.
+              Le coordinate di due modelli non sono confrontabili in alcun modo &mdash; non hanno relazione fra
+              loro &mdash; ma «quali immagini questo modello ritiene più prossime a questa» significa la stessa
+              cosa in entrambi.
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- --------------------------------------------------------- honest -->
+      <section class="gd-section" id="honest">
+        <h2>Che cosa non può fare</h2>
+
+        <div class="gd-note">
+          <h3>I limiti da conoscere prima di dare credito a tutto questo</h3>
+          <p>
+            Ogni funzione di questa pagina poggia sulle stesse fondamenta, e ne eredita gli stessi limiti.
+          </p>
+          <ul>
+            <li>
+              <strong>Il modello ha imparato da immagini con didascalie raccolte sul web.</strong> Distingue
+              «ritratto» da «paesaggio» in modo affidabile. È pressoché cieco alle distinzioni che opera uno
+              specialista &mdash; epoca, mano, bottega, stato di un'incisione &mdash; perché quelle parole quasi
+              mai comparivano accanto a un'immagine in ciò che ha letto.
+            </li>
+            <li>
+              <strong>«Simile» significa simile per un modello particolare, addestrato per uno scopo
+              particolare.</strong> Concorda spesso con il giudizio umano, ma non sempre, e non esiste alcun
+              segnale che dica in quale dei due casi ci si trovi. Quando una risposta sorprende, che il modello
+              abbia sbagliato è probabile quanto una scoperta.
+            </li>
+            <li>
+              <strong>I pregiudizi del materiale di addestramento passano intatti.</strong> Ciò che il modello
+              trova degno di nota, tipico o affine riflette ciò che era diffuso sul web, non ciò che è vero della
+              collezione in esame né del mondo.
+            </li>
+            <li>
+              <strong>Nulla di tutto questo è una misurazione.</strong> Sono letture di un solo strumento, dal
+              carattere noto. Valgono soprattutto quando inducono a guardare un'immagine che altrimenti non si
+              sarebbe guardata &mdash; e valgono pochissimo quando vengono citate come un numero.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+    </div>
+  </main>
+  <script src="/static/js/help_language.js"></script>
+</body>
+</html>

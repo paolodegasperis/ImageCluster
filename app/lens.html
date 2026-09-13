@@ -230,9 +230,12 @@
       <article class="help-panel" role="dialog" aria-modal="true" aria-labelledby="lensHelpTitle">
         <header class="help-head">
           <h2 id="lensHelpTitle">What these lenses are for</h2>
+          <button class="btn btn-sm btn-ghost" type="button" data-help-lang-toggle
+                  title="This explanation is available in Italian. The interface itself stays in English.">Italiano</button>
           <button class="btn btn-icon btn-ghost btn-sm" type="button" data-close-help aria-label="Close">&times;</button>
         </header>
         <div class="help-body">
+          <div data-help-lang="en">
           <section>
             <h3>Why a separate view</h3>
             <p>
@@ -297,10 +300,91 @@
               not the world's.</li>
             </ul>
           </section>
+          </div>
+
+          <div data-help-lang="it" hidden>
+          <section>
+            <h3>Perché una vista separata</h3>
+            <p>
+              La proiezione, il mosaico e il grafo rispondono tutti con un'<em>immagine della collezione</em>.
+              Queste tre rispondono con altro &mdash; un elenco di parole, una richiesta derivata, una classifica
+              di divergenze &mdash; e stanno perciò da parte, invece di affollare uno spazio di lavoro costruito
+              attorno a un grafico.
+            </p>
+            <p>
+              Tutte e tre leggono una proiezione già esistente. Le prime due usano in più la metà testuale dello
+              spazio del modello, e richiedono quindi una proiezione di famiglia CLIP, caricando il modello al
+              primo impiego; la terza funziona con due proiezioni qualsiasi della stessa cartella.
+            </p>
+          </section>
+
+          <section>
+            <h3>Che cosa separa due gruppi</h3>
+            <p>
+              Ogni gruppo ha un centro: la media delle sue immagini nello spazio del modello. La direzione dal
+              centro di B a quello di A è a sua volta un punto in quello stesso spazio e, poiché vi abitano anche
+              le parole, il vocabolario può essere valutato lungo quella direzione. I termini che pendono verso A
+              descrivono ciò che A possiede e B no.
+            </p>
+            <p>
+              Due cautele. Il <strong>vocabolario vincola la risposta</strong>: il modello restituisce i termini
+              migliori <em>fra quelli offerti</em>, anche quando nessuno è pertinente, e conviene perciò adattare
+              l'elenco alla propria collezione. E la <strong>centroid similarity</strong> riportata insieme al
+              risultato dice quanto i due gruppi siano realmente distanti &mdash; un lungo elenco di parole
+              distintive significa poco quando i due quasi coincidono.
+            </p>
+          </section>
+
+          <section>
+            <h3>Aritmetica dei concetti</h3>
+            <p>
+              Si parte da un'immagine, si sottrae un'idea, se ne aggiunge un'altra, e la collezione viene ordinata
+              rispetto al risultato. Va considerato uno strumento per pensare più che un'operazione affidabile: lo
+              spazio codifica didascalie raccolte dal web, non una grammatica, e l'aritmetica funziona abbastanza
+              spesso da risultare illuminante e fallisce abbastanza spesso da imporre di guardare che cosa torna
+              indietro.
+            </p>
+          </section>
+
+          <section>
+            <h3>Dove due modelli dissentono</h3>
+            <p>
+              Si elabora la stessa cartella due volte, una con un modello di famiglia CLIP e una con DINOv2 o con
+              <strong>Visual Features</strong>, poi si confrontano. Per ogni immagine i due vicinati vengono
+              intersecati: una sovrapposizione di 1 significa che entrambi i modelli considerano suoi parenti più
+              stretti le stesse opere, 0 che non ne condividono nessuna.
+            </p>
+            <p>
+              Le immagini in fondo a quella classifica sono quelle su cui vale la pena soffermarsi. Sono il luogo
+              in cui soggetto e maniera si separano &mdash; e nessuno dei due modelli può indicarle da solo,
+              perché ciascuno vede unicamente la propria risposta. L'informazione esiste soltanto nel confronto.
+            </p>
+            <p>
+              La sovrapposizione è un conteggio su k, e assume quindi pochi valori distinti: i pari merito sono la
+              regola. Quando molte immagini condividono il punteggio più basso il pannello lo dichiara, perché in
+              quel caso l'ordine fra loro è arbitrario e non va letto come una classifica.
+            </p>
+          </section>
+
+          <section>
+            <h3>Che cosa nulla di tutto questo può fare</h3>
+            <ul class="help-list">
+              <li>CLIP ha imparato da didascalie raccolte sul web. Separa «ritratto» da «paesaggio» in modo
+              affidabile; è cieco a «bottega di» contro «maniera di», e alla maggior parte delle distinzioni che
+              opererebbe un conoscitore.</li>
+              <li>La similarità coseno è prossimità in uno spazio addestrato per un obiettivo particolare.
+              Concorda spesso con il giudizio umano, non sempre, e non esiste alcun segnale che avverta quando non
+              lo fa.</li>
+              <li>I pregiudizi dei dati di addestramento passano intatti in ogni raggruppamento presentato qui. La
+              mappa è quella di un modello, non quella del mondo.</li>
+            </ul>
+          </section>
+          </div>
         </div>
       </article>
     </div>
   </main>
+  <script src="/static/js/help_language.js"></script>
   <script src="/static/js/lens.js"></script>
 </body>
 </html>

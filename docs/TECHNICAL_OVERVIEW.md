@@ -4,7 +4,7 @@
 forks, and further development. It describes what the app does, how it is built,
 which embedding models work and which do not, and where the known limits are.
 
-**Version at time of writing:** `/api/status` reports `6.5.0`
+**Version at time of writing:** `/api/status` reports `6.6.0`
 (`backend/version.py` is the single source of truth; see `CHANGELOG.md`).
 
 ---
@@ -25,14 +25,15 @@ visual/semantic similarity. The user flow:
 It runs entirely on the local machine; no telemetry, no external services
 except downloading model weights from Hugging Face on first use.
 
-### Six screens
+### Seven screens
 | Route | File(s) | Purpose |
 |-------|---------|---------|
 | `/` | `app/index.html` + `app/js/dashboard.js` | Dashboard: scan status, dependency status, three workflow cards |
 | `/clip` | `app/clip_projection.html` + `app/js/clip_projection.js` (+ `analysis_panels.js`, `redesign_ui.js`) | Embedding projection: the core workspace |
 | `/graph` | `app/neighbor_graph.html` + `app/js/neighbor_graph.js` | Nearest-neighbor graph: standalone view over a saved projection's embeddings |
 | `/lens` | `app/lens.html` + `app/js/lens.js` | Lenses: what separates two groups in words, concept arithmetic, model disagreement |
-| `/guide` | `app/guide.html` | Plain-language explanation of every feature, its limits included (no JS) |
+| `/guide` | `app/guide.html` | Plain-language explanation of every feature, its limits included |
+| `/guide/it` | `app/guide.it.html` | The same guide in Italian, for a readership of scholars |
 | `/models` | `app/models_tokens.html` + `app/js/models_tokens.js` (+ `redesign_settings.js`) | Info & settings: HF token, model registry, guide, glossary |
 | `/integrated` | — | 302 redirect to `/clip` (legacy compatibility) |
 
@@ -96,7 +97,19 @@ installs PyTorch + `requirements-core.txt`, then runs `run.py` (Uvicorn on
 
 ## 3. API surface (the contract)
 
-Pages: `/`, `/clip`, `/graph`, `/lens`, `/guide`, `/models`, `/integrated`→`/clip`.
+Pages: `/`, `/clip`, `/graph`, `/lens`, `/guide`, `/guide/it`, `/models`,
+`/integrated`→`/clip`.
+
+**Italian documentation.** Only the documentation is translated, never the
+interface: the guide page, the two in-place help panels and the glossary
+definitions. Parallel content rather than a branch or a string catalogue -
+this is prose with no logic and no interpolation, so a second copy costs
+nothing and cannot drift from any code. English is the source and the fallback;
+where the two disagree the English one is right. The panels carry both
+languages in the markup with one hidden, and `app/js/help_language.js` holds
+the single shared preference (English by default). UI labels stay English even
+inside Italian prose, so a reader can still find them on screen -
+`docs/GLOSSARIO_IT.md` is the binding rule sheet.
 
 **Concept arithmetic combines in score space, not vector space** (v6.4.1). CLIP
 keeps images and text in two separate cones: on a real collection an image sits

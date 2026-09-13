@@ -462,6 +462,20 @@ def guide_page() -> str:
     return _page("guide.html")
 
 
+@app.get("/guide/it", response_class=HTMLResponse)
+def guide_page_it() -> str:
+    """The same account in Italian, for readers who are scholars rather than developers.
+
+    A parallel file rather than a branch or a string catalogue: this page is
+    prose with no logic and no interpolation, so a second copy costs nothing to
+    serve and cannot drift from any code. English stays the source - where the
+    two disagree the English one is right - and the interface itself is
+    unchanged, which the page says in its own opening lines so that nobody
+    expects otherwise.
+    """
+    return _page("guide.it.html")
+
+
 @app.post("/api/analysis/compare")
 def analysis_compare(req: CompareImagesRequest) -> dict:
     """How related two images of the same projection actually are."""

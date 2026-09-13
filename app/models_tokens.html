@@ -17,9 +17,12 @@
         <div>
           <div class="eyebrow">Configuration</div>
           <h1>Info and settings</h1>
-          <p>Read the guide, browse the embedding model registry and glossary, and configure the local Hugging Face token used by model loaders.</p>
+          <p data-help-lang="en">Read the guide, browse the embedding model registry and glossary, and configure the local Hugging Face token used by model loaders.</p>
+          <p data-help-lang="it" hidden>Leggere la guida, consultare il registro dei modelli di embedding e il glossario, e configurare il token locale di Hugging Face usato dai caricatori dei modelli.</p>
         </div>
         <div class="mt-head-actions">
+          <button class="btn btn-sm btn-ghost" type="button" data-help-lang-toggle
+                  title="The explanations on this page are available in Italian. Controls and model names stay in English.">Italiano</button>
           <a class="btn btn-sm btn-ghost" href="/guide">What each function does</a>
           <a class="btn btn-sm" href="/">Dashboard</a>
         </div>
@@ -38,6 +41,10 @@
         </div>
         <label class="visually-hidden"><input id="hfTokenReveal" type="checkbox" /> Show token</label>
         <div class="tc-meta">
+          <!-- Not bilingual on purpose: models_tokens.js writes live status and
+               error messages into this element, and hiding it in Italian mode
+               would replace a real message with a fixed sentence. It is a status
+               line, not documentation. -->
           <span id="hfTokenMeta">Do not commit local_settings.json to source control.</span>
           <span class="flex-1"></span>
           <button class="btn btn-xs btn-ghost" id="hfTokenClear">Remove local token</button>
@@ -51,7 +58,7 @@
       </nav>
 
       <section class="guide-grid" id="guide">
-        <article class="guide-card">
+        <article class="guide-card" data-help-lang="en">
           <h3>How the workflow runs</h3>
           <p>ImageCluster encodes every image in the <code>img</code> folder into a vector, reduces those vectors to 2D, and lets you explore the result on an interactive canvas with optional clustering and text search.</p>
           <div class="step-pill"><div class="sp-num mono">1</div><div class="sp-txt"><b>Scan the img folder</b><div>The backend lists supported images and reports the count.</div></div></div>
@@ -59,7 +66,7 @@
           <div class="step-pill"><div class="sp-num mono">3</div><div class="sp-txt"><b>Generate the graph</b><div>Runs UMAP or t-SNE plus optional K-Means clustering as a background job.</div></div></div>
           <div class="step-pill"><div class="sp-num mono">4</div><div class="sp-txt"><b>Explore</b><div>Pan and zoom the canvas, switch to image mode, search semantically, and browse clusters in the gallery.</div></div></div>
         </article>
-        <article class="guide-card">
+        <article class="guide-card" data-help-lang="en">
           <h3>Choosing a model</h3>
           <p>Match the model to the collection and hardware.</p>
           <ul class="plain-guide-list">
@@ -70,12 +77,32 @@
           </ul>
           <div class="status-banner idle">Models marked planned are roadmap entries and cannot run locally yet.</div>
         </article>
+        <article class="guide-card" data-help-lang="it" hidden>
+          <h3>Come si svolge il lavoro</h3>
+          <p>ImageCluster codifica ogni immagine della cartella <code>img</code> in un vettore, riduce quei vettori a due dimensioni e permette di esplorare il risultato su una tela interattiva, con clustering e ricerca testuale facoltativi.</p>
+          <div class="step-pill"><div class="sp-num mono">1</div><div class="sp-txt"><b>Scansione della cartella img</b><div>Il backend elenca le immagini nei formati supportati e ne riporta il numero.</div></div></div>
+          <div class="step-pill"><div class="sp-num mono">2</div><div class="sp-txt"><b>Scelta di un modello di embedding</b><div>I modelli di famiglia CLIP consentono la ricerca testuale; quelli di sola visione consentono soltanto proiezione e clustering.</div></div></div>
+          <div class="step-pill"><div class="sp-num mono">3</div><div class="sp-txt"><b>Generazione del grafico</b><div>Esegue UMAP o t-SNE, con clustering K-Means facoltativo, come elaborazione in secondo piano.</div></div></div>
+          <div class="step-pill"><div class="sp-num mono">4</div><div class="sp-txt"><b>Esplorazione</b><div>Si sposta e si ingrandisce la tela, si passa alla modalità immagini, si cerca per significato e si scorrono i cluster nella galleria.</div></div></div>
+        </article>
+        <article class="guide-card" data-help-lang="it" hidden>
+          <h3>Scegliere un modello</h3>
+          <p>Il modello va scelto in base alla collezione e alla macchina.</p>
+          <ul class="plain-guide-list">
+            <li><b>Collezione d'arte generica, con necessità di ricerca testuale</b>: conviene partire da OpenCLIP ViT-B/32 o SigLIP 2.</li>
+            <li><b>Macchina poco potente o cartella molto ampia</b>: le varianti MobileCLIP.</li>
+            <li><b>Somiglianza visiva formale, senza testo</b>: DINOv2.</li>
+            <li><b>Corpus multilingue o non occidentale</b>: MetaCLIP 2 worldwide.</li>
+          </ul>
+          <div class="status-banner idle">I modelli contrassegnati come <em>planned</em> sono voci di programma e non possono ancora essere eseguiti in locale.</div>
+        </article>
       </section>
 
       <section id="models">
         <div class="mg-section-head">
           <div>
-            <h2>Embedding model guide</h2>
+            <h2 data-help-lang="en">Embedding model guide</h2>
+            <h2 data-help-lang="it" hidden>Guida ai modelli di embedding</h2>
             <div id="modelCounts" class="muted">Loading models...</div>
           </div>
           <div id="modelShowing" class="meta"></div>
@@ -100,7 +127,11 @@
       </section>
 
       <section id="glossary">
-        <dl class="glossary-list">
+        <p class="help gloss-note">
+          I termini restano in inglese perché sono quelli che compaiono nell'interfaccia; le definizioni
+          possono essere lette in italiano.
+        </p>
+        <dl class="glossary-list" data-help-lang="en">
           <div class="gloss"><dt>Embedding</dt><dd>A numeric vector that represents an image or text in a shared space.</dd></div>
           <div class="gloss"><dt>Projection</dt><dd>A 2D map of high-dimensional embeddings, produced by UMAP or t-SNE.</dd></div>
           <div class="gloss"><dt>UMAP</dt><dd>Fast projection method that preserves useful local and global structure.</dd></div>
@@ -112,6 +143,19 @@
           <div class="gloss"><dt>Top results</dt><dd>Maximum number of matches returned by a search.</dd></div>
           <div class="gloss"><dt>Hugging Face token</dt><dd>A local credential used by model loaders to download gated models.</dd></div>
         </dl>
+        <dl class="glossary-list" data-help-lang="it" hidden>
+          <div class="gloss"><dt>Embedding</dt><dd>Un vettore numerico che rappresenta un'immagine o un testo in uno spazio condiviso.</dd></div>
+          <div class="gloss"><dt>Projection</dt><dd>Una mappa bidimensionale di embedding ad alta dimensionalità, prodotta da UMAP o t-SNE.</dd></div>
+          <div class="gloss"><dt>UMAP</dt><dd>Metodo di proiezione rapido, che conserva struttura locale e d'insieme.</dd></div>
+          <div class="gloss"><dt>t-SNE</dt><dd>Metodo di proiezione che accentua i vicinati locali stretti.</dd></div>
+          <div class="gloss"><dt>Clustering (K-Means)</dt><dd>Raggruppa gli embedding in K cluster e determina i colori del grafico e i gruppi della galleria.</dd></div>
+          <div class="gloss"><dt>Semantic search</dt><dd>Interrogazione in testo libero confrontata con gli embedding delle immagini; disponibile per i modelli che accostano immagini e testo.</dd></div>
+          <div class="gloss"><dt>Searchable index</dt><dd>Una struttura predisposta sugli embedding che rende più rapide le interrogazioni testuali ripetute.</dd></div>
+          <div class="gloss"><dt>Score / threshold</dt><dd>Punteggio di similarità di ciascun risultato; la soglia nasconde le corrispondenze al di sotto di un limite.</dd></div>
+          <div class="gloss"><dt>Top results</dt><dd>Numero massimo di corrispondenze restituite da una ricerca.</dd></div>
+          <div class="gloss"><dt>Hugging Face token</dt><dd>Una credenziale locale usata dai caricatori per scaricare i modelli ad accesso riservato.</dd></div>
+        </dl>
+
       </section>
     </div>
   </main>
@@ -132,6 +176,7 @@
   </aside>
   <div class="mt-detail-backdrop" data-close-drawer hidden></div>
 
+  <script src="/static/js/help_language.js"></script>
   <script src="/static/js/models_tokens.js"></script>
   <script src="/static/js/redesign_settings.js"></script>
 </body>

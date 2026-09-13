@@ -81,47 +81,12 @@
               <button type="button" data-reducer-choice="semantic">Named</button>
             </div>
 
-            <div id="semanticAxes" hidden>
+            <div id="semanticAxesPointer" hidden>
               <p class="help">
-                Each axis is the direction between two phrases. The projection then places every image by how far
-                it leans towards one end or the other &mdash; so the plot has axes you chose and can read, instead of
-                two directions the algorithm picked for its own reasons.
-                <button class="link-btn" type="button" data-semantic-help>How this works</button>
+                The axis phrases live in the <strong>Explore</strong> panel, beside the other things you describe in
+                words. Set them there, then generate.
+                <button class="link-btn" type="button" data-open-semantic-panel>Open the Explore panel</button>
               </p>
-              <div class="axis-pair">
-                <span class="ap-title">Horizontal axis</span>
-                <label class="ap-field">
-                  <span>Left end</span>
-                  <input class="input" id="semanticXNeg" type="text" placeholder="a landscape"
-                         title="What the left of the plot should mean. Several phrasings separated by ; describe a direction more reliably than one." />
-                </label>
-                <label class="ap-field">
-                  <span>Right end</span>
-                  <input class="input" id="semanticXPos" type="text" placeholder="a portrait of a person"
-                         title="What the right of the plot should mean." />
-                </label>
-              </div>
-              <div class="axis-pair">
-                <span class="ap-title">Vertical axis</span>
-                <label class="ap-field">
-                  <span>Bottom end</span>
-                  <input class="input" id="semanticYNeg" type="text" placeholder="a calm scene"
-                         title="What the bottom of the plot should mean." />
-                </label>
-                <label class="ap-field">
-                  <span>Top end</span>
-                  <input class="input" id="semanticYPos" type="text" placeholder="a dramatic scene"
-                         title="What the top of the plot should mean." />
-                </label>
-              </div>
-              <div class="axis-presets">
-                <span class="lbl">Try</span>
-                <button class="btn btn-xs" type="button" data-axis-preset="subject">Subject</button>
-                <button class="btn btn-xs" type="button" data-axis-preset="mood">Mood</button>
-                <button class="btn btn-xs" type="button" data-axis-preset="setting">Setting</button>
-              </div>
-              <button class="btn btn-sm" type="button" id="semanticPreviewBtn"
-                      title="Check the axes against the projection already loaded, without generating a new one">Preview on the loaded projection</button>
               <div class="status-banner idle" id="semanticStatus">Needs a CLIP-family model: the axes are built from text.</div>
             </div>
 
@@ -423,6 +388,49 @@
           <label class="check-row" title="Draw each thumbnail's cluster colour as a frame around it, so groups are readable without switching to points mode.">
             <input id="showThumbnailOutline" type="checkbox" checked /> Show colored outline around thumbnails
           </label>
+
+          <h5 id="semanticAxesHeading">Name the axes yourself</h5>
+          <div id="semanticAxes">
+            <p class="help">
+              Each axis is the direction between two phrases, so the plot gets axes you named and can read.
+              <button class="link-btn" type="button" data-semantic-help>How this works</button>
+            </p>
+            <div class="axis-presets">
+              <span class="lbl">Try</span>
+              <button class="btn btn-xs" type="button" data-axis-preset="subject">Subject</button>
+              <button class="btn btn-xs" type="button" data-axis-preset="mood">Mood</button>
+              <button class="btn btn-xs" type="button" data-axis-preset="setting">Setting</button>
+            </div>
+            <div class="axis-pair">
+              <span class="ap-title">Horizontal axis</span>
+              <label class="ap-field">
+                <span>Left end</span>
+                <input class="input" id="semanticXNeg" type="text" placeholder="a landscape"
+                       title="What the left of the plot should mean. Several phrasings separated by ; describe a direction more reliably than one." />
+              </label>
+              <label class="ap-field">
+                <span>Right end</span>
+                <input class="input" id="semanticXPos" type="text" placeholder="a portrait of a person"
+                       title="What the right of the plot should mean." />
+              </label>
+            </div>
+            <div class="axis-pair">
+              <span class="ap-title">Vertical axis</span>
+              <label class="ap-field">
+                <span>Bottom end</span>
+                <input class="input" id="semanticYNeg" type="text" placeholder="a calm scene"
+                       title="What the bottom of the plot should mean." />
+              </label>
+              <label class="ap-field">
+                <span>Top end</span>
+                <input class="input" id="semanticYPos" type="text" placeholder="a dramatic scene"
+                       title="What the top of the plot should mean." />
+              </label>
+            </div>
+            <button class="btn btn-sm" type="button" id="semanticPreviewBtn"
+                    title="Check the axes against the projection already loaded, without generating a new one">Preview on the loaded projection</button>
+            <div class="status-banner idle" id="semanticPanelStatus">Needs a CLIP-family projection: the axes are built from text.</div>
+          </div>
 
           <h5>Color by a concept</h5>
           <p class="help">
