@@ -329,10 +329,17 @@ def encode_texts_with_transformers(texts: list[str], spec: ModelSpec, batch_size
     vectors: list[np.ndarray] = []
     for start in range(0, len(texts), batch_size):
         batch_texts = texts[start:start + batch_size]
+        # padding="max_length", not padding=True. SigLIP and SigLIP 2 were
+        # trained on captions padded to the full 64-token context and their text
+        # towers rely on it: padded only to the longest line of the batch, they
+        # return near-identical vectors for unrelated queries, and search
+        # silently ranks at chance while the images keep encoding correctly.
+        # CLIP-family towers pool at the end-of-text token and are indifferent to
+        # the choice, so one setting serves every model here.
         try:
-            inputs = processor(text=batch_texts, padding=True, truncation=True, return_tensors="pt")
+            inputs = processor(text=batch_texts, padding="max_length", truncation=True, return_tensors="pt")
         except TypeError:
-            inputs = processor(batch_texts, padding=True, truncation=True, return_tensors="pt")
+            inputs = processor(batch_texts, padding="max_length", truncation=True, return_tensors="pt")
         inputs = _move_to_device(inputs, device)
         emb = _extract_text_embedding(model, inputs, spec.provider)
         emb = _normalize(emb)

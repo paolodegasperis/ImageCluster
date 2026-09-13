@@ -1,5 +1,122 @@
 # Changelog
 
+## v6.7.0 - two models added, one turned down, four repaired
+
+Adding a model meant auditing the rest, and the audit found that a quarter of
+the collection could not search at all.
+
+Two models added, one refused, and the difference written down rather than left
+to be re-discovered.
+
+**HQ-CLIP B/16** joins the list as experimental. It is a CLIP trained on
+VLM-150M, a corpus whose captions were rewritten and filtered for quality
+instead of scraped as found — so it rewards a carefully worded query rather than
+a keyword. The checkpoint is the author's own OpenCLIP-compatible repository,
+`zhixiangwei/vlm150m-hqclip-large-vitb16`, Apache-2.0.
+
+No new code. The roadmap note had assumed a checkpoint loader would be needed;
+the repository turned out to ship `open_clip_config.json` and
+`open_clip_model.safetensors`, which the existing `hf-hub:` branch in
+`openclip_encoder.py` already handles. The whole integration is one registry
+entry.
+
+Verified before promotion, not after:
+
+| Check | Result |
+|---|---|
+| Tokenizer resolves | yes — so text search is a promise it can keep |
+| Embeddings | 512-d, finite, unit-norm, every image its own nearest neighbour |
+| Agreement with the B/32 default | 7-9 of the top 10 on shared queries |
+| Grounded retrieval, 165 images | target ranked 1st, 1st, 2nd |
+| CPU speed | ~47 ms/image, about twice the B/32 default — `cpu_ok` |
+
+### Text search was broken in four models, silently
+
+SigLIP - marked **stable**, offered as a safe choice - together with SigLIP 2,
+MobileCLIP2 S2 and MobileCLIP2 S4 returned search results at chance. On a
+165-image collection the mean rank of the expected picture was 80 to 88, where
+chance is 83 and every other model scores between 1 and 7.
+
+Nothing looked wrong. The images encoded correctly - their neighbourhoods agree
+with the default model as closely as any healthy encoder's - so projections,
+clusters, duplicates, outliers and *find similar* were never affected. Only the
+search bar was, and it answered every query with a confident, ranked, wrong
+list. No error, no warning.
+
+The instrument that caught it: four solid-colour images and the queries "a
+solid red image", "a solid green image", and so on. Any working CLIP scores
+4/4. The four failing models scored 1/4, and gave **the same answer to every
+question** - `['blue', 'blue', 'blue', 'blue']`. That is the signature of a text
+tower whose output has collapsed, and it is invisible on real photographs,
+where a plausible-looking picture always comes back.
+
+Both causes were padding, and both are one line.
+
+| | Before | After |
+|---|---|---|
+| SigLIP, rank of the expected image | 31, 9, 105 | **1, 1, 3** |
+| SigLIP 2 | 78, 6, 98 | **2, 1, 2** |
+| MobileCLIP2 S2 | 74, 27, 99 | **2, 1, 2** |
+| MobileCLIP2 S4 | 44, 65, 63 | **1, 1, 1** |
+
+SigLIP's text tower is trained on captions padded to the full 64-token context;
+`padding=True` pads only to the longest line in the batch, and the tower needs
+the rest. MobileCLIP2 S2 and S4 ship a tokenizer that pads with the
+end-of-text token repeated, and those two towers collapse on it - the measured
+similarity between unrelated sentences was 0.95, against 0.50 once the padding
+is blanked. Every other model is indifferent to both settings, verified.
+
+### Licences are now visible
+
+Nine of the models on offer restrict how their output may be used: MetaCLIP and
+MetaCLIP 2, in all four variants, are CC BY-NC 4.0, and MobileCLIP and the three
+MobileCLIP2 checkpoints carry Apple's research-only terms. None of this appeared
+anywhere - not in the model card, not in the selector, not in the
+documentation. A user could project a catalogue for commercial work having never
+been told.
+
+`ModelSpec` now carries a `license`, every active entry declares one, and it is
+shown beside the publication date on both `/clip` and `/models` - in words
+rather than in identifiers, because "cc-by-nc-4.0" means nothing to an art
+historian and "non-commercial" does. Searching `/models` for "non-commercial"
+now lists exactly the models that are.
+
+**PE-Core B/16** joins it. Meta's Perception Encoder comes from outside the CLIP
+lineage, and that is the reason to have it: its embedding is 1024-dimensional
+where nearly everything else here gives 512, and it groups a collection along
+different lines rather than simply along better ones. Apache-2.0, and `timm` —
+which it needs for its vision tower — was already installed.
+
+It reads only 32 tokens of a query, against CLIP's 77. A catalogue-style
+sentence is silently truncated, so the model card in `/models` says to keep
+phrases short. Verified the same way as HQ-CLIP: the same three grounded
+queries, the same ranks, 112 ms/image on CPU.
+
+A note on the survey behind both. The roadmap in
+`docs/PLANNED_MODELS_FEASIBILITY.md` had been written against the models of its
+own moment and was a year stale, so it now carries a section dated 13 September
+2026, read from the Hugging Face API rather than recalled: what is a drop-in,
+what needs work, and what turned out to be irrelevant. Two entries there deserve
+attention. **DINOv3** would be the natural successor to DINOv2, but its
+repository is gated behind a manually approved request — which contradicts this
+application's promise of needing no account, so it stays planned rather than
+shipping broken for most people. **TIPSv2**, published in August 2026, is the
+closest thing yet to what this application actually does — dense spatial
+features and text alignment from one model — and is the next thing worth a
+spike.
+
+**LaCLIP stays out.** Its official weights are still `.pt` files in a GitHub
+repository, but a community mirror appeared in October 2025 that is
+structurally a valid CLIP B/16 and would have dropped into the existing
+Transformers path with no work at all. It was turned down anyway: no licence, an
+empty auto-generated model card, and no way to show the weights are the ones the
+paper describes. A correct shape is not provenance, and an application that
+carries a DOI should not depend on a file nobody can vouch for. The entry stays
+visible, now saying why.
+
+The `/models` description for LaCLIP had also been describing CLOC — patch-aware
+retrieval and local correspondences, which is not what LaCLIP does. Corrected.
+
 ## v6.6.0 - the documentation in Italian
 
 The explanations are now available in Italian, for a readership of scholars

@@ -228,7 +228,7 @@ change (checkpoint + provider + capability flags), not new code.
 | SigLIP Base patch16 224 | transformers_image_features | yes | CPU-friendly |
 | DINOv2 Base | transformers_vision_pool | **no** | Vision-only (projection/clustering; search bar disabled by design) |
 
-### ◐ Experimental (13) — wired to real encoders; work when deps + checkpoint present
+### ◐ Experimental (15) — wired to real encoders; work when deps + checkpoint present
 Downloads the checkpoint on first use; not all hardware-verified.
 
 | Model | Provider | Text search | Caveat |
@@ -246,17 +246,52 @@ Downloads the checkpoint on first use; not all hardware-verified.
 | **ImageBind Huge** | imagebind | no | ⚠️ **Inactive unless installed manually** — `imagebind` is not on PyPI; install from Meta's repo, then it activates automatically |
 | **Qwen3-VL Embedding 2B** (V-5.5) | sentence_transformers | yes | ⚠️ Optional deps: `sentence-transformers` + `qwen-vl-utils` + `transformers>=4.57`; large GPU; inactive until installed; **not yet hardware-verified** |
 | **Jina v5 Omni Small** (V-5.5) | sentence_transformers | yes | ⚠️ Optional dep `sentence-transformers`; GPU; **license CC BY-NC 4.0 (non-commercial)**; inactive until installed; **not yet hardware-verified** |
+| **HQ-CLIP B/16** (v6.7.0) | openclip_hf_hub | yes | `hf-hub:zhixiangwei/vlm150m-hqclip-large-vitb16`, Apache-2.0; **hardware-verified on CPU** (~47 ms/image, about 2× the B/32 default) |
+| **PE-Core B/16** (v6.7.0) | openclip_hf_hub | yes | `hf-hub:timm/PE-Core-B-16`, Apache-2.0; pulls its vision tower through `timm`; 1024-d embedding; **text context 32 tokens** — long queries are truncated; **hardware-verified on CPU** (~112 ms/image) |
 
-### ✖️ Planned (5) — NOT functional (no checkpoint/loader wired)
+### ✖️ Planned (4) — NOT functional (no checkpoint/loader wired)
 Shown in `/models` for roadmap visibility; disabled in the `/clip` selector.
 
 | Model | Why still planned |
 |-------|-------------------|
 | MetaCLIP 2 · 2B Worldwide | Code path ready (`transformers_metaclip2`) but ~2B params → very large GPU/host RAM; niche |
-| HQ-CLIP B/16 | Needs checkpoint + slot confirmation |
 | Long-CLIP B/32 | Extended 248-token context → needs a custom loader (modified positional embeddings) |
-| LaCLIP | Standard CLIP arch, but official weights are `.pt` files in `LijieFan/LaCLIP` — not an OpenCLIP `pretrained` tag nor an HF Transformers repo; needs a mirror or checkpoint-file loader |
+| LaCLIP | **Not integrated by decision, not by obstacle** (v6.7.0). Official weights remain `.pt` files in `LijieFan/LaCLIP`. A community mirror (`helena-balabin/laclip-vit-b16`, Oct 2025) is a structurally valid CLIP B/16 and would load through `transformers_clip` with no new code, but it declares no licence, ships an empty auto-generated model card and offers no way to prove the weights are the ones the paper describes. Provenance that thin does not belong in a citable tool |
 | CLOC | Region-aware design + uncertain public checkpoint |
+
+### Licences
+
+Nine active checkpoints restrict use. The registry records this per model in
+`ModelSpec.license`, and both `/clip` and `/models` display it beside the
+publication date.
+
+| Models | Licence |
+|---|---|
+| MetaCLIP B/32 and L/14, MetaCLIP 2 Worldwide B/32 and H/14, Jina v5 Omni Small | **CC BY-NC 4.0 — non-commercial** |
+| MobileCLIP B, MobileCLIP2 S2 / B / S4 | **`apple-amlr` — research use only, and revocable** |
+| OpenCLIP, EVA-CLIP | MIT |
+| SigLIP, SigLIP 2, DINOv2, Nomic, HQ-CLIP, PE-Core, Qwen3-VL | Apache-2.0 |
+| Visual Features | none — computed locally, no weights |
+
+### Text query padding
+
+Two settings that decide whether search works, both verified and both covered by
+`tests/test_text_query_padding.py`:
+
+- The Transformers path pads queries with `padding="max_length"`. SigLIP and
+  SigLIP 2 are trained on captions padded to the full 64-token context; padded
+  to the longest line of a batch instead, their text towers return near-identical
+  vectors for unrelated queries and search ranks at chance while the images
+  still encode correctly. CLIP-family towers are indifferent to the choice.
+- The OpenCLIP path blanks everything after the end-of-text token. MobileCLIP2
+  S2 and S4 ship a tokenizer that pads with that token repeated, and their towers
+  collapse on it — pairwise similarity 0.95 between unrelated sentences, against
+  0.50 once blanked.
+
+A degenerate text tower is invisible on real images, because a plausible picture
+always comes back. Four solid-colour images and the queries "a solid red image",
+"a solid green image" and so on expose it in seconds: a healthy model scores 4/4,
+a collapsed one answers every query with the same image.
 
 See `docs/PLANNED_MODELS_FEASIBILITY.md` for the integration playbook and the
 promotion criteria (`planned → experimental → stable`).

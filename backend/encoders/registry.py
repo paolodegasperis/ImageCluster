@@ -16,6 +16,11 @@ class ModelSpec:
     model_id: str
     pretrained: str = ""
     published: str = ""
+    # SPDX-style licence of the checkpoint actually downloaded, as the
+    # Hugging Face repository declares it. Shown to the user: several of
+    # these forbid commercial use, and a projection made in ignorance of
+    # that is a problem the application handed its own user.
+    license: str = ""
     description: str = ""
     default: bool = False
     requires: tuple[str, ...] = ()
@@ -48,6 +53,7 @@ class ModelSpec:
 IMPORT_NAMES = {
     "torch": "torch",
     "open_clip": "open_clip",
+    "timm": "timm",
     "transformers": "transformers",
     "huggingface_hub": "huggingface_hub",
     "einops": "einops",
@@ -72,6 +78,7 @@ def missing_requirements(spec: ModelSpec) -> list[str]:
 MODEL_REGISTRY: dict[str, ModelSpec] = {
     "openclip_vit_b_32": ModelSpec(
         key="openclip_vit_b_32",
+        license="mit",
         family="OpenCLIP",
         label="OpenCLIP · ViT-B-32 · LAION-2B",
         provider="openclip",
@@ -89,6 +96,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "openai_clip_vit_b_32": ModelSpec(
         key="openai_clip_vit_b_32",
+        license="mit (upstream repository; undeclared on the Hub)",
         family="CLIP",
         label="CLIP · OpenAI ViT-B/32",
         provider="transformers_clip",
@@ -104,6 +112,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "siglip_base_patch16_224": ModelSpec(
         key="siglip_base_patch16_224",
+        license="apache-2.0",
         family="SigLIP",
         label="SigLIP · Base patch16 224",
         provider="transformers_image_features",
@@ -119,6 +128,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "siglip2_base_patch16_224": ModelSpec(
         key="siglip2_base_patch16_224",
+        license="apache-2.0",
         family="SigLIP 2",
         label="SigLIP 2 · Base patch16 224",
         provider="transformers_image_features",
@@ -135,6 +145,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "visual_features_opencv": ModelSpec(
         key="visual_features_opencv",
+        license="n/a - computed locally, no model weights",
         family="Visual Features",
         label="Visual Features · OpenCV",
         provider="visual_features",
@@ -155,6 +166,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "mobileclip_b_openclip": ModelSpec(
         key="mobileclip_b_openclip",
+        license="apple-amlr - research use only",
         family="MobileCLIP",
         label="MobileCLIP · B · OpenCLIP checkpoint",
         provider="openclip_hf_hub",
@@ -171,6 +183,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "dinov2_base": ModelSpec(
         key="dinov2_base",
+        license="apache-2.0",
         family="DINOv2",
         label="DINOv2 · Base",
         provider="transformers_vision_pool",
@@ -186,6 +199,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "nomic_embed_vision_v1_5": ModelSpec(
         key="nomic_embed_vision_v1_5",
+        license="apache-2.0",
         family="Nomic Embed Vision",
         label="Nomic Embed Vision · v1.5",
         provider="nomic_transformers",
@@ -204,6 +218,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "imagebind_huge": ModelSpec(
         key="imagebind_huge",
+        license="see Meta's ImageBind repository - not verified here",
         family="ImageBind",
         label="ImageBind · Huge",
         provider="imagebind",
@@ -221,6 +236,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "metaclip_b32": ModelSpec(
         key="metaclip_b32",
+        license="cc-by-nc-4.0 - non-commercial",
         family="MetaCLIP",
         label="MetaCLIP · ViT-B/32",
         provider="openclip",
@@ -239,6 +255,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "metaclip_l14": ModelSpec(
         key="metaclip_l14",
+        license="cc-by-nc-4.0 - non-commercial",
         family="MetaCLIP",
         label="MetaCLIP · ViT-L/14",
         provider="openclip",
@@ -257,6 +274,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "metaclip2_worldwide_h14": ModelSpec(
         key="metaclip2_worldwide_h14",
+        license="cc-by-nc-4.0 - non-commercial",
         family="MetaCLIP 2",
         label="MetaCLIP 2 · Worldwide H/14",
         provider="transformers_metaclip2",
@@ -276,6 +294,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "metaclip2_worldwide_b32": ModelSpec(
         key="metaclip2_worldwide_b32",
+        license="cc-by-nc-4.0 - non-commercial",
         family="MetaCLIP 2",
         label="MetaCLIP 2 · Worldwide B/32",
         provider="transformers_metaclip2",
@@ -295,6 +314,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "metaclip2_2b_worldwide": ModelSpec(
         key="metaclip2_2b_worldwide",
+        license="cc-by-nc-4.0 - non-commercial",
         family="MetaCLIP 2",
         label="MetaCLIP 2 · 2B Worldwide",
         provider="planned",
@@ -313,6 +333,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "mobileclip2_s2": ModelSpec(
         key="mobileclip2_s2",
+        license="apple-amlr - research use only",
         family="MobileCLIP2",
         label="MobileCLIP2 · S2",
         provider="openclip_hf_hub",
@@ -332,6 +353,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "mobileclip2_b": ModelSpec(
         key="mobileclip2_b",
+        license="apple-amlr - research use only",
         family="MobileCLIP2",
         label="MobileCLIP2 · B",
         provider="openclip_hf_hub",
@@ -351,6 +373,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "mobileclip2_s4": ModelSpec(
         key="mobileclip2_s4",
+        license="apple-amlr - research use only",
         family="MobileCLIP2",
         label="MobileCLIP2 · S4",
         provider="openclip_hf_hub",
@@ -370,18 +393,43 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "hq_clip_b16": ModelSpec(
         key="hq_clip_b16",
+        license="apache-2.0",
         family="HQ-CLIP",
         label="HQ-CLIP · B/16",
-        provider="planned",
-        model_id="",
-        published="planned",
-        description="Roadmap entry for curated high-quality image-text alignment.",
-        notes="Planned until a verified local checkpoint and loader are added.",
-        supports_image_embedding=False,
-        supports_projection=False,
-        recommended_for=("art_collection",),
-        hardware_tier="gpu_recommended",
-        status="planned",
+        provider="openclip_hf_hub",
+        model_id="hf-hub:zhixiangwei/vlm150m-hqclip-large-vitb16",
+        published="2025-07-04",
+        description="CLIP trained on VLM-150M, a corpus whose captions were rewritten and filtered for quality rather than merely scraped. Aimed at collections where the wording of a description carries the meaning.",
+        requires=("torch", "open_clip"),
+        recommended_batch_size=16,
+        notes="Experimental: uses the author's own OpenCLIP-compatible Hugging Face checkpoint (Apache-2.0) and downloads weights on first use.",
+        supports_image_embedding=True,
+        supports_text_embedding=True,
+        supports_text_search=True,
+        supports_projection=True,
+        recommended_for=("art_collection", "general"),
+        hardware_tier="cpu_ok",
+        status="experimental",
+    ),
+    "pe_core_b16": ModelSpec(
+        key="pe_core_b16",
+        license="apache-2.0",
+        family="Perception Encoder",
+        label="PE-Core · B/16",
+        provider="openclip_hf_hub",
+        model_id="hf-hub:timm/PE-Core-B-16",
+        published="2025-07-24",
+        description="Meta's Perception Encoder, a vision-language family trained apart from the CLIP lineage. Its embedding is 1024-dimensional where most models here give 512, and it groups a collection differently rather than merely better.",
+        requires=("torch", "open_clip", "timm"),
+        recommended_batch_size=16,
+        notes="Experimental: OpenCLIP-compatible checkpoint (Apache-2.0), downloaded on first use. Its text context is 32 tokens against CLIP's 77, so a long catalogue-style query is truncated; keep queries short and specific with this one.",
+        supports_image_embedding=True,
+        supports_text_embedding=True,
+        supports_text_search=True,
+        supports_projection=True,
+        recommended_for=("art_collection", "visual_similarity"),
+        hardware_tier="cpu_ok",
+        status="experimental",
     ),
     "long_clip_b32": ModelSpec(
         key="long_clip_b32",
@@ -400,6 +448,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "eva_clip_l14": ModelSpec(
         key="eva_clip_l14",
+        license="mit",
         family="EVA-CLIP",
         label="EVA-CLIP · L/14",
         provider="openclip",
@@ -420,6 +469,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "eva_clip_bigE14": ModelSpec(
         key="eva_clip_bigE14",
+        license="mit",
         family="EVA-CLIP",
         label="EVA-CLIP · bigE/14",
         provider="openclip",
@@ -457,13 +507,14 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "laclip_roadmap": ModelSpec(
         key="laclip_roadmap",
+        license="none declared - one reason it is not integrated",
         family="LACLIP",
         label="LACLIP · roadmap",
         provider="planned",
         model_id="",
         published="planned",
         description="LaCLIP (CLIP trained with LLM-rewritten captions). Standard CLIP architecture, but the official weights ship as .pt checkpoints in the LijieFan/LaCLIP repo — not an OpenCLIP pretrained tag nor a Hugging Face Transformers repo.",
-        notes="Planned: not pure-wiring. Needs a verified open_clip-compatible hf-hub mirror, or a checkpoint-file loader path, before it can be promoted to experimental.",
+        notes="Not integrated, by decision rather than by obstacle. A community mirror of the ViT-B/16 weights appeared on Hugging Face in October 2025 and is structurally a valid CLIP, but it carries no licence, an empty model card and no way to prove the weights are the ones the paper describes. Provenance that thin does not belong in a citable tool.",
         supports_image_embedding=False,
         supports_text_embedding=False,
         supports_text_search=False,
@@ -474,6 +525,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "qwen3_vl_embedding_2b": ModelSpec(
         key="qwen3_vl_embedding_2b",
+        license="apache-2.0",
         family="Qwen3-VL",
         label="Qwen3-VL Embedding · 2B",
         provider="sentence_transformers",
@@ -494,6 +546,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "jina_v5_omni_small": ModelSpec(
         key="jina_v5_omni_small",
+        license="cc-by-nc-4.0 - non-commercial",
         family="Jina v5 Omni",
         label="Jina v5 Omni · Small",
         provider="sentence_transformers",

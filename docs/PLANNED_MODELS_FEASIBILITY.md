@@ -60,6 +60,16 @@ The 8 planned entries split into two structural groups:
 
 - **Pure placeholders** (`provider="planned"`, empty `model_id`, all capability flags `False`): `metaclip2_worldwide_h14`, `metaclip2_2b_worldwide`, `hq_clip_b16`, `long_clip_b32`, `eva_clip_l14`, `eva_clip_bigE14`, `cloc_roadmap`, `laclip_roadmap`.
 
+> **Resolved in v6.7.0.** Rows 4 and 5 below are settled and kept only as the
+> record of how. `hq_clip_b16` is **wired and experimental**: the author's own
+> OpenCLIP-compatible repo `zhixiangwei/vlm150m-hqclip-large-vitb16` (Apache-2.0,
+> `open_clip_config.json` + `open_clip_model.safetensors`) needed no new loader,
+> only the existing `hf-hub:` branch. `laclip_roadmap` is **deliberately not
+> integrated**: a community mirror appeared in October 2025 and would have
+> loaded, but with no licence, an empty model card and no way to prove the
+> weights' identity, wiring it would have put an unverifiable dependency inside
+> a tool that carries a DOI.
+
 | # | Model (key) | Family / arch | Reusable slot? | Effort | Feasibility | Blocking work |
 |---|-------------|---------------|----------------|--------|-------------|---------------|
 | 1 | `eva_clip_l14` — EVA-CLIP · L/14 | EVA-CLIP (ViT-L/14) | **Yes — `openclip`** (open_clip ships EVA archs, e.g. `EVA02-L-14` + a `pretrained` tag) | Low | **High** | Confirm the exact OpenCLIP arch name + `pretrained` tag in the installed build; set `model_id`/`pretrained`; verify. |
@@ -78,11 +88,11 @@ The 8 planned entries split into two structural groups:
 **Wave A — promote to `experimental` now (reuse existing encoders, wiring + verify only):**
 - `eva_clip_l14` (provider `openclip`) — strongest quick win.
 - `metaclip2_worldwide_h14` (provider `transformers_metaclip2`) — sibling path proven.
-- `laclip_roadmap` (provider `transformers_clip`/`openclip`) — pending checkpoint confirmation.
+- ~~`laclip_roadmap`~~ — **closed in v6.7.0 as will-not-integrate**; the only available mirror has no verifiable provenance.
 - `eva_clip_bigE14` (provider `openclip`) — wire it, but label clearly `large_gpu`.
 
 **Wave B — `experimental` after small targeted work:**
-- `hq_clip_b16` — confirm checkpoint + slot, then wire.
+- ~~`hq_clip_b16`~~ — **done in v6.7.0**, `openclip_hf_hub`; the checkpoint turned out to be a clean OpenCLIP repo, so no loader work was needed at all.
 - `long_clip_b32` — requires a custom/`trust_remote_code` loader for the extended context; this is the one genuine code task.
 
 **Wave C — keep `planned` (or experimental-with-warnings) until prerequisites exist:**
@@ -101,3 +111,61 @@ explicitly documented.
 - Gated repos: the existing HF-token mechanism (`/api/config/local/hf-token` → `config_store`) covers authentication; no new auth code is needed.
 - `trust_remote_code=True` (Long-CLIP, possibly others) executes downloaded code — acceptable for a local tool but worth flagging to users.
 - No backend contract changes are required for Waves A/B beyond registry entries and (for Long-CLIP) one new loader path registered in `base.py`.
+
+---
+
+## 5. Survey of September 2026
+
+The roadmap above was drawn up against the models of its own moment, and a year
+of releases has passed since. This section is a fresh reading of what the
+Hugging Face Hub actually offered on **13 September 2026**, taken from the Hub
+API rather than from memory: repository existence, gating, licence and file
+layout were each checked, and the two entries marked *verified* below were run
+against the 165-image reference collection with the application's own encoders.
+
+### Wired in v6.7.0
+
+| Model | Repo | Licence | Evidence |
+|---|---|---|---|
+| HQ-CLIP · B/16 | `zhixiangwei/vlm150m-hqclip-large-vitb16` | Apache-2.0 | **verified** — grounded retrieval ranked the target 1st, 1st, 2nd of 165; ~47 ms/image on CPU |
+| PE-Core · B/16 | `timm/PE-Core-B-16` | Apache-2.0 | **verified** — same three cases, same ranks; 1024-d embedding; ~112 ms/image on CPU |
+
+### Drop-in candidates — one registry entry each, no new code
+
+All carry `open_clip_config.json` + `open_clip_model.safetensors`, so the
+existing `hf-hub:` branch loads them unchanged.
+
+| Repo | Licence | What it would add |
+|---|---|---|
+| `timm/PE-Core-L-14-336` | Apache-2.0 | The L/14 sibling at 336 px — more detail, more cost |
+| `imageomics/bioclip-2` | MIT | Biological taxonomy. Narrow, but decisive for a natural-history collection |
+| `laion/CLIP-convnext_base_w-laion2B` | MIT | A convolutional CLIP rather than a ViT: a different inductive bias produces a genuinely different map of the same collection, which is the point of offering lenses at all |
+| `laion/CLIP-ViT-L-14-laion2B`, `-H-14`, `-bigG-14` | MIT | Larger siblings of the current default |
+| `timm/ViT-B-16-SigLIP2`, `timm/ViT-SO400M-14-SigLIP-384` | Apache-2.0 | SigLIP through OpenCLIP, alongside the Transformers path already wired |
+| `apple/DFN2B-CLIP-ViT-B-16` | ⚠️ `apple-amlr` | Strong data-filtered CLIP, but the Apple ML Research licence must be read before use — it is not an ordinary open licence |
+
+### Real work required
+
+- **DINOv3** (`facebook/dinov3-vitb16-pretrain-lvd1689m`) — the natural successor
+  to DINOv2 on the `transformers_vision_pool` path, and the installed
+  Transformers 4.57.6 already supports the architecture. But the repository is
+  **`gated: manual`**: it needs an access request approved by hand and a token.
+  That contradicts the application's own promise of working without an account
+  or an API key, and the licence is a custom Meta one rather than Apache. Keep
+  `planned` with the reason recorded, rather than shipping a model most users
+  cannot load.
+- **TIPSv2** (`google/tipsv2-b14`, Apache-2.0, updated 2026-08-17) — conceptually
+  the closest thing to what this application does: dense spatial features in the
+  DINO manner *and* text alignment, from one model, so the map and the search
+  would share a space. Not a drop-in: it needs `trust_remote_code=True`, a
+  non-standard preprocessing (`ToTensor()` at 448×448 with **no** ImageNet
+  normalisation, where every current encoder normalises), and its config
+  declares `transformers_version 5.10.0.dev0` against the installed 4.57.6.
+  Worth a scoped feasibility spike of its own.
+
+### Ruled out
+
+- `microsoft/colipri` — trending, but a **3D encoder for chest CT scans**. Nothing to do with 2D images.
+- `jinaai/jina-clip-v2` — multilingual and good, but **CC BY-NC 4.0**, the same non-commercial constraint already documented for Jina v5 Omni.
+- Multilingual search generally — the only open option is `laion/CLIP-ViT-B-32-xlm-roberta-base-laion5B` (MIT), unchanged since 2022 and without an `open_clip_config.json`. Now that the documentation exists in Italian the question will be asked; today the honest answer is SigLIP 2, already wired and trained multilingually.
+- Art- or heritage-specific CLIP checkpoints — searched for, and nothing serious exists. Only hobby fine-tunes with single-digit download counts.

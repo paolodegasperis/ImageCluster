@@ -89,6 +89,35 @@ def encode_with_openclip(
     return np.vstack(vectors).astype("float32"), encoded_paths
 
 
+def _zero_pad_after_eot(tokens):
+    """Blank everything after the end-of-text token in each row.
+
+    Some checkpoints ship a Hugging Face tokenizer that pads with the
+    end-of-text id repeated to the end of the context, where OpenCLIP's own
+    tokenizer pads with zeros. Most text towers ignore the difference. The
+    MobileCLIP2 S2 and S4 towers do not: fed the repeated padding they return
+    almost the same vector for every query - measured pairwise similarity 0.95
+    between unrelated sentences, against 0.50 once the padding is blanked - so
+    text search silently degrades to noise while the images keep encoding
+    correctly.
+
+    OpenCLIP locates the end of a caption with ``argmax``, which makes the
+    end-of-text id the largest in the row by construction; everything past it is
+    padding whatever the tokenizer chose to put there. Rows that are already
+    zero-padded, or that fill the whole context, are left untouched.
+    """
+    import torch
+
+    if not isinstance(tokens, torch.Tensor) or tokens.ndim != 2:
+        return tokens
+    cleaned = tokens.clone()
+    for row in cleaned:
+        end = int(torch.argmax(row).item())
+        if end + 1 < row.shape[0]:
+            row[end + 1:] = 0
+    return cleaned
+
+
 def encode_texts_with_openclip(texts: list[str], spec: ModelSpec, batch_size: int = 32) -> np.ndarray:
     import torch
 
@@ -109,7 +138,7 @@ def encode_texts_with_openclip(texts: list[str], spec: ModelSpec, batch_size: in
     with torch.no_grad():
         for start in range(0, len(texts), batch_size):
             batch_texts = texts[start:start + batch_size]
-            tokens = tokenizer(batch_texts).to(device)
+            tokens = _zero_pad_after_eot(tokenizer(batch_texts)).to(device)
             emb = model.encode_text(tokens)
             emb = emb / emb.norm(dim=-1, keepdim=True).clamp_min(1e-12)
             vectors.append(emb.detach().cpu().numpy())

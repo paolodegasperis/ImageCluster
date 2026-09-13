@@ -22,12 +22,13 @@ const MODEL_IMAGE_GUIDANCE = {
   mobileclip2_s2: 'Very lightweight option for fast previews, main subjects, broad shapes and large local archives.',
   mobileclip2_b: 'Balanced MobileCLIP2 option for quick local runs with better subject and composition awareness than smaller variants.',
   mobileclip2_s4: 'Larger MobileCLIP2 option for stronger local visual-language matching while remaining lighter than large CLIP families.',
-  hq_clip_b16: 'Roadmap model for higher-quality image-text alignment, useful for curated collections where precise captions matter.',
+  hq_clip_b16: 'Experimental CLIP trained on carefully rewritten captions rather than scraped ones; useful for curated collections where the wording of a description carries the meaning.',
+  pe_core_b16: 'Experimental encoder from outside the CLIP lineage; groups a collection along different lines, with a 1024-dimensional embedding. Keep search phrases short — it reads only 32 words.',
   long_clip_b32: 'Roadmap model for longer catalogue-style search terms and descriptive prompts.',
   eva_clip_l14: 'Roadmap model for strong visual similarity and art-oriented semantic grouping.',
   eva_clip_bigE14: 'Roadmap large EVA-CLIP option for richer visual detail, style and semantic grouping on powerful hardware.',
   cloc_roadmap: 'Roadmap entry for region-aware and local-alignment retrieval, useful when parts of an image matter more than the whole.',
-  laclip_roadmap: 'Roadmap entry for patch-aware cultural heritage retrieval and fine-grained local visual correspondences.',
+  laclip_roadmap: 'Not integrated: the published weights have no licence and no verifiable provenance.',
 };
 
 const $ = id => document.getElementById(id);
@@ -176,6 +177,7 @@ function filterModels() {
       model.description,
       model.notes,
       model.published,
+      model.license,
       model.provider,
       model.status,
       imageGuidance(model),
@@ -238,6 +240,7 @@ function openDrawer(modelKey) {
     model.family,
     model.model_id || model.pretrained || 'local registry entry',
     model.published ? `published ${model.published}` : '',
+    model.license ? `licence ${model.license}` : '',
   ].filter(Boolean).join(' - '));
   setHTML('drawerBody', renderDrawerBody(model));
   const blocked = model.status === 'planned' || model.status === 'unavailable';

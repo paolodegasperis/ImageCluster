@@ -425,7 +425,11 @@ function updateModelInfo() {
     selected.hardware_tier === 'gpu_recommended' || selected.hardware_tier === 'large_gpu' ? 'Requires GPU' : '',
     selected.supports_text_search ? 'Text search supported' : 'Projection only',
   ].filter(Boolean).join(' · ');
-  const parts = [selected.family, labels, selected.published ? `published ${selected.published}` : '', selected.provider ? `provider ${selected.provider}` : '', missing, selected.notes || selected.description || ''];
+  // The licence sits next to the publication date rather than buried in the
+  // notes: several checkpoints here forbid commercial use, and that has to
+  // be readable before a projection is generated, not after.
+  const licence = selected.license ? `licence ${selected.license}` : '';
+  const parts = [selected.family, labels, selected.published ? `published ${selected.published}` : '', licence, selected.provider ? `provider ${selected.provider}` : '', missing, selected.notes || selected.description || ''];
   setText('modelInfo', parts.filter(Boolean).join(' · '));
   setText('workflowModelShort', selected.family || selected.label || 'Model');
   if (has('batchSize') && selected.recommended_batch_size) $('batchSize').value = selected.recommended_batch_size;
