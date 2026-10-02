@@ -81,6 +81,7 @@ def test_required_model_families_are_present():
         "MetaCLIP",
         "MetaCLIP 2",
         "HQ-CLIP",
+        "CultureCLIP",
         "Long-CLIP",
         "EVA-CLIP",
         "CLOC",
@@ -113,6 +114,35 @@ def test_hq_clip_is_wired_to_the_openclip_hub_encoder():
     # text search is a promise the model can keep.
     assert spec.supports_text_search is True
     assert spec.supports_text_embedding is True
+
+
+def test_cultureclip_is_wired_to_the_transformers_clip_encoder():
+    """v6.8.0: CultureCLIP B/32 registered as experimental.
+
+    The checkpoint is a plain HuggingFace ``CLIPModel`` fine-tuned from
+    ``openai/clip-vit-base-patch32``, so the existing ``transformers_clip``
+    provider carries it with no new code.
+    """
+    spec = MODEL_REGISTRY["cultureclip_b32"]
+    assert spec.status == "experimental"
+    assert spec.provider == "transformers_clip"
+    assert spec.model_id == "lukahh/cultureclip_sd_0303_32"
+    assert spec.requires == ("torch", "transformers")
+    assert spec.supports_image_embedding is True
+    assert spec.supports_projection is True
+    # Verified against the live checkpoint on the 165-image reference collection:
+    # four solid colours 4/4, so the text tower is intact and search is a promise
+    # the model can keep.
+    assert spec.supports_text_search is True
+    assert spec.supports_text_embedding is True
+    # The weights declare no licence and descend from a CC BY-NC dataset. The
+    # user is told rather than left to assume.
+    assert "undeclared" in spec.license.lower()
+    assert "CC BY-NC" in spec.license
+    # It matched, but did not beat, its own base on this collection. The note
+    # has to say so — an experimental model that oversells itself is worse than
+    # no model at all.
+    assert "did not beat" in spec.notes
 
 
 def test_laclip_stays_planned():

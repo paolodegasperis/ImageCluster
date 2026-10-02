@@ -130,6 +130,48 @@ against the 165-image reference collection with the application's own encoders.
 | HQ-CLIP · B/16 | `zhixiangwei/vlm150m-hqclip-large-vitb16` | Apache-2.0 | **verified** — grounded retrieval ranked the target 1st, 1st, 2nd of 165; ~47 ms/image on CPU |
 | PE-Core · B/16 | `timm/PE-Core-B-16` | Apache-2.0 | **verified** — same three cases, same ranks; 1024-d embedding; ~112 ms/image on CPU |
 
+### Wired in v6.8.0
+
+| Model | Repo | Licence | Evidence |
+|---|---|---|---|
+| CultureCLIP · B/32 | `lukahh/cultureclip_sd_0303_32` | **undeclared** (code Apache-2.0, CulTwin CC BY-NC 4.0) | **verified, with a caveat** — see below |
+
+CultureCLIP ([arXiv 2507.06210](https://arxiv.org/abs/2507.06210), COLM 2025) fine-tunes
+CLIP on CulTwin, pairs of images that look alike and mean different things in
+different cultures. Neither the paper nor the GitHub repository links a
+checkpoint; the author's Hub account holds about thirty dated training runs
+instead, and `cultureclip_sd_0303_32` is the B/32 of 3 March 2025 — the most
+recent full fine-tune of `openai/clip-vit-base-patch32`, as opposed to the LoRA
+ablations that follow it. **Choosing it is an inference from dates, not a
+statement by the authors.** The `_lora_` repositories also ship a merged
+`model.safetensors` and would load the same way; they are ablations and were not
+considered.
+
+The checkpoint is a plain HuggingFace `CLIPModel`, so `transformers_clip` carries
+it: one registry entry, no code.
+
+What the 165-image reference collection showed:
+
+| Check | Result |
+|---|---|
+| Four solid colours | **4/4** — the text tower is intact, unlike the four failures found in v6.7.0 |
+| Embeddings | 512-d, finite, unit-norm, every image its own nearest neighbour |
+| CPU speed | ~14 ms/image — as cheap as the default, `cpu_ok` |
+| Image neighbourhoods vs its own base CLIP | 8.23 of the top 10 shared on average (min 5) |
+| Grounded retrieval, 4 described pictures | ranks 1, 1, 3, 1 — **identical to the base**, picture for picture |
+| Culturally worded queries | 3–5 of the top 5 shared with the base; the re-orderings are not visibly better |
+
+So it is healthy and it is honest, but on a collection of Western painting it
+did **not** beat the CLIP it was fine-tuned from. That is not evidence against
+the paper: CulTwin's claim is about telling apart concepts from *different*
+cultures, and this collection contains one. It is registered `experimental` on
+the strength of being a sound, cheap second reading — roughly a fifth of its
+neighbourhoods differ from the base — and the registry note says exactly that,
+so no user picks it expecting an improvement that was not measured.
+
+Re-verify before promoting any further: on a collection that actually spans
+cultures, the comparison above is the one worth repeating.
+
 ### Drop-in candidates — one registry entry each, no new code
 
 All carry `open_clip_config.json` + `open_clip_model.safetensors`, so the

@@ -411,6 +411,34 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
         hardware_tier="cpu_ok",
         status="experimental",
     ),
+    "cultureclip_b32": ModelSpec(
+        key="cultureclip_b32",
+        license="undeclared on the Hub (code Apache-2.0; the CulTwin training set is CC BY-NC 4.0, so treat the weights as non-commercial)",
+        family="CultureCLIP",
+        label="CultureCLIP · B/32",
+        provider="transformers_clip",
+        model_id="lukahh/cultureclip_sd_0303_32",
+        published="2025-03-03",
+        description="OpenAI CLIP B/32 fine-tuned on CulTwin, a synthetic set of near-identical images that carry different cultural meanings. Aimed at collections where the distinction between two similar objects is cultural rather than visual.",
+        requires=("torch", "transformers"),
+        recommended_batch_size=32,
+        notes=(
+            "Experimental, and the provenance is thinner than everything else here: "
+            "the authors published no named release, only some thirty dated training "
+            "runs, and this is the B/32 of 3 March 2025. Verified on the 165-image "
+            "reference collection: the text tower is intact and grounded retrieval "
+            "matches its own base CLIP exactly. It did not beat that base on "
+            "culturally worded queries either, so choose it to get a second reading "
+            "of a collection, not a better one."
+        ),
+        supports_image_embedding=True,
+        supports_text_embedding=True,
+        supports_text_search=True,
+        supports_projection=True,
+        recommended_for=("art_collection", "general"),
+        hardware_tier="cpu_ok",
+        status="experimental",
+    ),
     "pe_core_b16": ModelSpec(
         key="pe_core_b16",
         license="apache-2.0",

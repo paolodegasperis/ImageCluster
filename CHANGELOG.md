@@ -1,5 +1,65 @@
 # Changelog
 
+## v6.8.0 - a model that matches rather than beats, and a hook that guards the byline
+
+Two unrelated things, both about saying plainly what is true.
+
+### CultureCLIP B/32, registered experimental
+
+CultureCLIP ([arXiv 2507.06210](https://arxiv.org/abs/2507.06210), COLM 2025)
+fine-tunes CLIP on CulTwin, pairs of images that look alike and mean different
+things in different cultures. The idea is directly relevant to a cultural
+heritage tool, so it was worth testing rather than assuming.
+
+Finding the weights was the first problem. Neither the paper nor the GitHub
+repository links a checkpoint; the author's Hugging Face account holds about
+thirty dated training runs instead. `lukahh/cultureclip_sd_0303_32` is the most
+recent full fine-tune of `openai/clip-vit-base-patch32`, before the LoRA
+ablations begin — **chosen by inference from dates, not by any statement of the
+authors**, and the registry note says so. The weights declare no licence; the
+CulTwin dataset is CC BY-NC 4.0, so they are recorded as non-commercial.
+
+No new code. It is a plain Transformers `CLIPModel`, so the existing
+`transformers_clip` provider carries it: one registry entry.
+
+Verified on the 165-image reference collection, with the application's own
+encoders:
+
+| Check | Result |
+|---|---|
+| Four solid colours | 4/4 — the text tower is intact, unlike the four failures of v6.7.0 |
+| Embeddings | 512-d, finite, unit-norm, every image its own nearest neighbour |
+| CPU speed | ~14 ms/image — as cheap as the default, `cpu_ok` |
+| Image neighbourhoods vs its own base CLIP | 8.23 of the top 10 shared on average, min 5 |
+| Grounded retrieval, 4 described pictures | ranks 1, 1, 3, 1 — identical to the base, picture for picture |
+| Culturally worded queries | 3-5 of the top 5 shared with the base; the re-orderings are not visibly better |
+
+So it did **not** beat the CLIP it was fine-tuned from. That is not evidence
+against the paper: CulTwin's claim is about telling apart concepts from
+*different* cultures, and the reference collection is entirely Western painting,
+which cannot test it. It is registered on the strength of being sound, cheap and
+genuinely different in about a fifth of its neighbourhoods — a second reading of
+a collection, not a better one. The registry note says exactly that, and a test
+asserts the note keeps saying it, because an experimental model that oversells
+itself is worse than no model at all.
+
+### The byline is now enforced by git
+
+ImageCluster has one author. Some AI assistants append a `Co-Authored-By:`
+trailer or a "Generated with" line to every commit message they help write, and
+such a line is public the moment it is pushed; removing it afterwards means
+rewriting published history.
+
+`.githooks/commit-msg` refuses any commit message carrying one. It needs
+`git config core.hooksPath .githooks` once per clone — hooks are not cloned —
+and `docs/PUBLISHING.md` now opens with that instruction.
+
+The history was checked before the hook was written, not assumed: no commit in
+this repository has ever carried such a trailer, and no commit is authored by
+anyone else. A stale entry in GitHub's sidebar cache said otherwise; the
+contributors graph, the commit list filtered by that account and both REST
+endpoints all agree with the history.
+
 ## v6.7.0 - two models added, one turned down, four repaired
 
 Adding a model meant auditing the rest, and the audit found that a quarter of

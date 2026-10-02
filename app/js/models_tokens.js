@@ -23,6 +23,7 @@ const MODEL_IMAGE_GUIDANCE = {
   mobileclip2_b: 'Balanced MobileCLIP2 option for quick local runs with better subject and composition awareness than smaller variants.',
   mobileclip2_s4: 'Larger MobileCLIP2 option for stronger local visual-language matching while remaining lighter than large CLIP families.',
   hq_clip_b16: 'Experimental CLIP trained on carefully rewritten captions rather than scraped ones; useful for curated collections where the wording of a description carries the meaning.',
+  cultureclip_b32: 'Experimental CLIP fine-tuned to tell apart objects that look alike but mean different things in different cultures; a second reading of a collection rather than a sharper one.',
   pe_core_b16: 'Experimental encoder from outside the CLIP lineage; groups a collection along different lines, with a 1024-dimensional embedding. Keep search phrases short — it reads only 32 words.',
   long_clip_b32: 'Roadmap model for longer catalogue-style search terms and descriptive prompts.',
   eva_clip_l14: 'Roadmap model for strong visual similarity and art-oriented semantic grouping.',
