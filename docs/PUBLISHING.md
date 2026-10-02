@@ -10,6 +10,23 @@ records file deletions (e.g. the removed `imageplot_original.html`).
 > Prerequisites: `git` (and optionally the `gh` CLI) installed and authenticated
 > to GitHub (`gh auth login`, or an SSH key / credential helper).
 
+## Authorship: install the commit hook once per clone
+
+ImageCluster has one author. AI assistants are instruments, and several of them
+append a `Co-Authored-By:` trailer or a "Generated with" line to every commit
+message they help write. Such a line is public the moment it is pushed, and
+removing it afterwards means rewriting published history.
+
+`.githooks/commit-msg` refuses any commit message carrying one. Hooks are not
+copied by `git clone`, so in every fresh clone run once:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Verify it is active with `git config core.hooksPath` — it must print
+`.githooks`. To bypass it deliberately: `git commit --no-verify`.
+
 ## One-time vs each release
 `.gitignore` already excludes work artifacts: `.venv/`, `__pycache__/`,
 `.pytest_cache/`, `.claude/`, `*.zip`, and the runtime contents of `output/` and

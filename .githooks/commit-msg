@@ -1,0 +1,37 @@
+#!/bin/sh
+#
+# Rejects any commit message that credits a tool as an author.
+#
+# ImageCluster has one author. AI assistants are instruments, like an editor or
+# a compiler, and the default behaviour of some of them is to append a
+# "Co-Authored-By" trailer or a "Generated with" line to every commit they help
+# write. Once such a line is pushed it is part of the public record of the
+# repository and of anything that cites it, and removing it means rewriting
+# published history. This hook stops it at the only moment where stopping it is
+# free.
+#
+# Installed by setting, once per clone:
+#     git config core.hooksPath .githooks
+#
+# To bypass deliberately: git commit --no-verify
+
+msg_file="$1"
+
+# Strip comment lines: git's own template mentions nothing relevant, but an
+# editor session can leave instructions in the buffer.
+body=$(grep -v '^#' "$msg_file")
+
+offenders=$(printf '%s\n' "$body" | grep -n -i -E \
+  '^[[:space:]]*(co-authored-by:|signed-off-by:[[:space:]]*(claude|anthropic))|generated with \[?claude|🤖[[:space:]]*generated with' )
+
+if [ -n "$offenders" ]; then
+  echo "commit-msg: refused - the message credits a tool as an author." >&2
+  echo >&2
+  printf '%s\n' "$offenders" | sed 's/^/    /' >&2
+  echo >&2
+  echo "ImageCluster is authored by paolodegasperis alone. Remove the line(s)" >&2
+  echo "above and commit again. If you really mean it: git commit --no-verify" >&2
+  exit 1
+fi
+
+exit 0
