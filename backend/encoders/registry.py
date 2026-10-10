@@ -32,6 +32,12 @@ class ModelSpec:
     supports_text_search: bool = False
     supports_projection: bool = True
     optional_local_features: bool = False
+    # Name of the Sentence-Transformers prompt applied to a text query, for models
+    # trained with a task prefix. EmbeddingGemma expects "task: search result |
+    # query: " in front of a query; without it the model still answers, ranked and
+    # plausible and worse, which is the failure mode this project has already been
+    # caught by once. Empty for every model that takes a bare query.
+    text_prompt_name: str = ""
     recommended_for: tuple[str, ...] = ()
     hardware_tier: str = "cpu_ok"
     status: str = "stable"
@@ -209,12 +215,20 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
         requires=("torch", "transformers", "einops"),
         trust_remote_code=True,
         recommended_batch_size=16,
-        notes="Uses trust_remote_code=True. First run downloads model code and weights from Hugging Face.",
+        notes=(
+            "UNAVAILABLE since v6.9.0, and the cause is upstream. The model runs remote code written for "
+            "Transformers 4; under Transformers 5 it fails twice. Its own config.json declares n_inner as "
+            "2048.0, a decimal where huggingface_hub 1.x now requires a whole number, and coercing that value "
+            "only uncovers the next break: the remote modelling code reads config.layer_norm_eps, which that "
+            "config spells layer_norm_epsilon. Repairing it would mean maintaining a patched copy of someone "
+            "else's model code, which is not a promise this project can keep. It returns to the list if Nomic "
+            "publishes a checkpoint that loads on Transformers 5."
+        ),
         supports_text_embedding=False,
         supports_text_search=False,
         recommended_for=("visual_similarity",),
         hardware_tier="gpu_recommended",
-        status="experimental",
+        status="unavailable",
     ),
     "imagebind_huge": ModelSpec(
         key="imagebind_huge",
@@ -411,6 +425,39 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
         hardware_tier="cpu_ok",
         status="experimental",
     ),
+    "embeddinggemma2": ModelSpec(
+        key="embeddinggemma2",
+        license="apache-2.0",
+        family="EmbeddingGemma",
+        label="EmbeddingGemma 2",
+        provider="sentence_transformers",
+        model_id="google/embeddinggemma-2",
+        published="2026-09-04",
+        description=(
+            "Google's multimodal embedding model: text, images, video and audio in one shared 768-dimensional "
+            "space, over 100 languages, and a context of 8192 tokens against CLIP's 77. The only model here that "
+            "answers an Italian query as well as its English twin."
+        ),
+        requires=("torch", "sentence_transformers"),
+        recommended_batch_size=8,
+        text_prompt_name="query",
+        notes=(
+            "Verified on the 165-image reference collection: four solid colours 4/4, 768-d unit-norm embeddings, "
+            "every image its own nearest neighbour. It is the one real cost here - ~107 ms/image on an RTX 5070 "
+            "but ~2.2 s/image on CPU, some seventy times the B/32 default, so a CPU-only machine should treat it "
+            "as an overnight job rather than a lens to switch between. Grounded retrieval ranked all four "
+            "described pictures first - the only model here to do so - and ranked them identically when the same "
+            "descriptions were written in Italian. Its 8192-token context was not shown to help on this "
+            "collection: the short form of the query already won."
+        ),
+        supports_image_embedding=True,
+        supports_text_embedding=True,
+        supports_text_search=True,
+        supports_projection=True,
+        recommended_for=("art_collection", "general"),
+        hardware_tier="gpu_recommended",
+        status="experimental",
+    ),
     "cultureclip_b32": ModelSpec(
         key="cultureclip_b32",
         license="undeclared on the Hub (code Apache-2.0; the CulTwin training set is CC BY-NC 4.0, so treat the weights as non-commercial)",
@@ -427,7 +474,9 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
             "the authors published no named release, only some thirty dated training "
             "runs, and this is the B/32 of 3 March 2025. Verified on the 165-image "
             "reference collection: the text tower is intact and grounded retrieval "
-            "matches its own base CLIP exactly. It did not beat that base on "
+            "matches its own base CLIP exactly. As cheap to run as the default "
+            "encoder - ~30 ms/image on CPU, ~11 ms on an RTX 5070, within a "
+            "millisecond of OpenCLIP B/32 either way. It did not beat that base on "
             "culturally worded queries either, so choose it to get a second reading "
             "of a collection, not a better one."
         ),

@@ -23,7 +23,12 @@ def _normalize(emb):
         emb = emb[:, 0]
     if emb.ndim != 2:
         emb = emb.reshape(emb.shape[0], -1)
-    return torch.nn.functional.normalize(emb, p=2, dim=-1)
+    # Normalize in float32 whatever the model computed in. Transformers 5 honours
+    # the dtype a checkpoint was saved with, and normalizing a bfloat16 tensor
+    # returns norms off unity by up to half a percent - measured at 0.998 to 1.004
+    # on EmbeddingGemma - which quietly breaks what every analysis here assumes
+    # about a unit-norm vector.
+    return torch.nn.functional.normalize(emb.float(), p=2, dim=-1)
 
 
 def _coerce_to_tensor(value, context: str = "model output"):
@@ -139,19 +144,14 @@ def _extract_text_embedding(model, inputs, provider: str):
     return _coerce_to_tensor(outputs, context=f"text_forward/{provider}")
 
 
-def _from_pretrained(factory, model_id: str, *, trust_remote_code: bool):
+def _from_pretrained(factory, model_id: str, *, trust_remote_code: bool, dtype: str = ""):
     token = apply_hf_token_to_environment()
     kwargs = {"trust_remote_code": trust_remote_code}
     if token:
         kwargs["token"] = token
-    try:
-        return factory.from_pretrained(model_id, **kwargs)
-    except TypeError:
-        if not token:
-            raise
-        kwargs.pop("token", None)
-        kwargs["use_auth_token"] = token
-        return factory.from_pretrained(model_id, **kwargs)
+    if dtype:
+        kwargs["dtype"] = dtype
+    return factory.from_pretrained(model_id, **kwargs)
 
 
 def _load_processor(spec: ModelSpec):
@@ -220,7 +220,15 @@ def _load_model(spec: ModelSpec, device: str):
     def loader():
         from transformers import AutoModel
 
-        model = _from_pretrained(AutoModel, spec.model_id, trust_remote_code=spec.trust_remote_code)
+        # Transformers 5 loads a checkpoint in the dtype it was saved with rather
+        # than always in float32. On CPU that is a trap: a bfloat16 checkpoint
+        # runs slowly where it runs at all, and its embeddings come back with
+        # norms off unity by a fraction of a percent, which quietly violates what
+        # the rest of the application assumes about a unit-norm vector. Ask for
+        # float32 on CPU and leave the saved dtype alone on an accelerator, where
+        # half precision is the point.
+        dtype = "float32" if device == "cpu" else ""
+        model = _from_pretrained(AutoModel, spec.model_id, trust_remote_code=spec.trust_remote_code, dtype=dtype)
         return model.to(device).eval()
 
     return get_or_load(f"hf-model|{spec.model_id}|{device}", loader)

@@ -1,5 +1,96 @@
 # Changelog
 
+## v6.9.0 - a model that answers in Italian, at the cost of a major upgrade
+
+The first model here that reads a query in Italian as well as it reads one in
+English. Getting it meant moving the whole project onto Transformers 5, which
+turned out to be cheaper than feared and cost one model.
+
+### EmbeddingGemma 2
+
+Google's multimodal embedding model puts text, images, video and audio in a
+single shared 768-dimensional space, reads over 100 languages, and takes 8192
+tokens of query where CLIP takes 77. Apache-2.0.
+
+Verified on the 165-image reference collection, with the application's own
+encoders:
+
+| Check | Result |
+|---|---|
+| Four solid colours | 4/4 — the text tower is intact |
+| Embeddings | 768-d, finite, unit-norm, every image its own nearest neighbour |
+| Grounded retrieval, four described pictures | **1, 1, 1, 1** |
+| The same four descriptions, written in Italian | **1, 1, 1, 1** — identical, rank for rank |
+| Speed | ~107 ms/image on an RTX 5070; **~2.2 s/image on CPU** |
+
+CLIP B/32 and CultureCLIP both rank those four targets 1, 1, 3, 1. This is the
+only model that places every one of them first, and the only one that does it
+in Italian — on descriptions written in Italian, not translated word by word.
+For a collection of Italian painting catalogued in Italian, that is the whole
+point.
+
+What it did **not** prove: the 8192-token context was tested with a 150-word
+catalogue description against the same picture described in one line, and both
+ranked the target first. The task was too easy to separate them, so the long
+context is neither confirmed nor refuted. The task prefix the model was trained
+with (`"task: search result | query: "`) is now wired through
+`ModelSpec.text_prompt_name`, but it changed nothing on these queries.
+
+It is registered `gpu_recommended`, not `cpu_ok`: seventy times the default's
+CPU cost is an overnight job, not a lens to switch between.
+
+### Transformers 5
+
+`requirements-core.txt` now asks for `transformers>=5.0,<6.0` and
+`huggingface_hub>=1.31,<2.0`. The old ceiling of `huggingface_hub<1.0` made the
+upgrade impossible, and `sentence-transformers` had already moved past it: the
+environment was failing `pip check` before this release, with Qwen3-VL and Jina
+v5 Omni offered in the selector on a combination their own library declared
+unsupported. Both now run.
+
+The upgrade was measured before it was made. Ten models were encoded under both
+versions, with the same torch, so the libraries were the only variable:
+
+| | |
+|---|---|
+| Cosine similarity, old embedding vs new | 0.99989 to 1.000000 |
+| Top-5 neighbourhoods identical | 100% (99% for CultureCLIP: one swap) |
+| Text side | bit-identical on six models of seven |
+| Speed | 10% to 70% faster, every model |
+
+The residual image-side difference comes from the v5 default of the fast image
+processor, which resizes marginally differently. Cached projections stay valid.
+
+**Nomic Embed Vision is unavailable from this release, and the cause is
+upstream.** It runs remote code written for Transformers 4. Its own
+`config.json` declares `n_inner` as `2048.0`, a decimal where huggingface_hub
+1.x now requires a whole number; coercing that value only uncovers the next
+break, where the remote modelling code reads `config.layer_norm_eps` against a
+config that spells it `layer_norm_epsilon`. Repairing it would mean maintaining
+a patched copy of someone else's model code. The entry stays in the registry,
+disabled, with the reason written in it.
+
+### Normalisation no longer depends on the checkpoint's dtype
+
+Transformers 5 honours the dtype a checkpoint was saved with instead of always
+loading float32. EmbeddingGemma is saved in bfloat16, and normalising in
+bfloat16 returned norms between 0.998 and 1.004 — every analysis here assumes a
+unit-norm vector. Both encoder paths now normalise in float32 whatever the model
+computed in, and CPU loads are forced to float32, where half precision is slow
+to useless. `tests/test_transformers_v5_contract.py` pins both decisions, and
+neither test touches the network.
+
+### A correction
+
+The v6.8.0 entry below reports CultureCLIP at "~14 ms/image" under the heading
+*CPU speed*. That figure was taken on this machine's RTX 5070, not on its CPU:
+`_select_device()` prefers CUDA when it is present, and nothing in the
+measurement said so. Measured properly, CultureCLIP runs at ~30 ms/image on CPU
+and ~11 ms on the GPU — within a millisecond of the B/32 default either way, so
+the conclusion it supported still holds. The registry note and the technical
+overview now state the device; figures in `docs/PLANNED_MODELS_FEASIBILITY.md`
+do too, with a note on how they are taken.
+
 ## v6.8.0 - a model that matches rather than beats, and a hook that guards the byline
 
 Two unrelated things, both about saying plainly what is true.

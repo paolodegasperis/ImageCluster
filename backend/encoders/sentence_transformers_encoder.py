@@ -26,11 +26,27 @@ from .registry import ModelSpec
 # a later text search do not reload a multi-GB checkpoint twice.
 
 
+def _select_device() -> str:
+    import torch
+
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
 def _model_kwargs(spec: ModelSpec) -> dict:
+    kwargs: dict = {}
     # Jina v5 Omni expects a default task for retrieval-style embeddings.
     if "jina" in spec.model_id.lower():
-        return {"default_task": "retrieval"}
-    return {}
+        kwargs["default_task"] = "retrieval"
+    # See the note in transformers_encoder._load_model: Transformers 5 honours the
+    # saved dtype, and a bfloat16 checkpoint on CPU returns vectors whose norms
+    # miss unity by enough to matter here.
+    if _select_device() == "cpu":
+        kwargs["dtype"] = "float32"
+    return kwargs
 
 
 def _load_model(spec: ModelSpec):
@@ -47,15 +63,26 @@ def _load_model(spec: ModelSpec):
     return get_or_load(f"sentence-transformers|{spec.model_id}", loader)
 
 
-def _encode(model, items, batch_size: int) -> np.ndarray:
+def _encode(model, items, batch_size: int, prompt_name: str = "") -> np.ndarray:
+    kwargs = {}
+    # Only pass a prompt the model actually declares: Sentence-Transformers raises
+    # on an unknown prompt name, and a model without prompts must keep working.
+    if prompt_name and prompt_name in (getattr(model, "prompts", None) or {}):
+        kwargs["prompt_name"] = prompt_name
     emb = model.encode(
         items,
         batch_size=max(1, batch_size),
         normalize_embeddings=True,
         convert_to_numpy=True,
         show_progress_bar=False,
+        **kwargs,
     )
-    return np.asarray(emb, dtype="float32")
+    out = np.asarray(emb, dtype="float32")
+    # The library normalized in the model's own dtype; redo it in float32 so a
+    # half-precision checkpoint still yields unit-norm vectors. See the note in
+    # transformers_encoder._normalize.
+    norms = np.linalg.norm(out, axis=-1, keepdims=True)
+    return np.divide(out, np.where(norms > 0, norms, 1.0)).astype("float32")
 
 
 def encode_with_sentence_transformers(
@@ -117,4 +144,4 @@ def encode_texts_with_sentence_transformers(texts: list[str], spec: ModelSpec, b
     if not texts:
         raise RuntimeError("No text queries were provided.")
     model = _load_model(spec)
-    return _encode(model, list(texts), batch_size)
+    return _encode(model, list(texts), batch_size, prompt_name=spec.text_prompt_name)

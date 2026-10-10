@@ -82,6 +82,7 @@ def test_required_model_families_are_present():
         "MetaCLIP 2",
         "HQ-CLIP",
         "CultureCLIP",
+        "EmbeddingGemma",
         "Long-CLIP",
         "EVA-CLIP",
         "CLOC",
@@ -143,6 +144,42 @@ def test_cultureclip_is_wired_to_the_transformers_clip_encoder():
     # has to say so — an experimental model that oversells itself is worse than
     # no model at all.
     assert "did not beat" in spec.notes
+
+
+def test_embeddinggemma_is_wired_to_the_sentence_transformers_encoder():
+    """v6.9.0: the first model here with one shared space for text and images
+    that answers an Italian query as well as an English one."""
+    spec = MODEL_REGISTRY["embeddinggemma2"]
+    assert spec.status == "experimental"
+    assert spec.provider == "sentence_transformers"
+    assert spec.model_id == "google/embeddinggemma-2"
+    assert spec.license == "apache-2.0"
+    assert spec.supports_image_embedding is True
+    assert spec.supports_text_search is True
+    assert spec.supports_text_embedding is True
+    assert spec.supports_projection is True
+    # ~107 ms/image on an RTX 5070 but ~2.2 s/image on CPU: it cannot promise
+    # that a machine without a GPU will run it at a usable speed.
+    assert spec.hardware_tier == "gpu_recommended"
+    # Trained with a task prefix: without it search degrades silently.
+    assert spec.text_prompt_name == "query"
+    # The long context was not shown to help on the reference collection, and the
+    # note must keep saying so rather than quietly inheriting the model card.
+    assert "not shown to help" in spec.notes
+
+
+def test_nomic_is_unavailable_under_transformers_5():
+    """v6.9.0: lost to an upstream incompatibility, not to a choice.
+
+    It is kept in the registry, and visible in /models, so the reason is on the
+    record instead of the model simply disappearing.
+    """
+    spec = MODEL_REGISTRY["nomic_embed_vision_v1_5"]
+    assert spec.status == "unavailable"
+    assert spec.trust_remote_code is True
+    assert "n_inner" in spec.notes and "layer_norm_eps" in spec.notes
+    public = {m["key"]: m for m in public_model_registry()}
+    assert public["nomic_embed_vision_v1_5"]["available"] is False
 
 
 def test_laclip_stays_planned():

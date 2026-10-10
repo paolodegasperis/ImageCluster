@@ -156,7 +156,7 @@ What the 165-image reference collection showed:
 |---|---|
 | Four solid colours | **4/4** — the text tower is intact, unlike the four failures found in v6.7.0 |
 | Embeddings | 512-d, finite, unit-norm, every image its own nearest neighbour |
-| CPU speed | ~14 ms/image — as cheap as the default, `cpu_ok` |
+| Speed | ~30 ms/image on CPU, ~11 ms on an RTX 5070 — as cheap as the default either way |
 | Image neighbourhoods vs its own base CLIP | 8.23 of the top 10 shared on average (min 5) |
 | Grounded retrieval, 4 described pictures | ranks 1, 1, 3, 1 — **identical to the base**, picture for picture |
 | Culturally worded queries | 3–5 of the top 5 shared with the base; the re-orderings are not visibly better |
@@ -171,6 +171,49 @@ so no user picks it expecting an improvement that was not measured.
 
 Re-verify before promoting any further: on a collection that actually spans
 cultures, the comparison above is the one worth repeating.
+
+### Wired in v6.9.0
+
+| Model | Repo | Licence | Evidence |
+|---|---|---|---|
+| EmbeddingGemma 2 | `google/embeddinggemma-2` | Apache-2.0 | **verified** — see below |
+
+Google's multimodal embedding model puts text, images, video and audio in one
+shared 768-dimensional space, reads 100+ languages, and takes 8192 tokens of
+query where CLIP takes 77. It arrives through `sentence_transformers`, the
+provider already used by Qwen3-VL and Jina.
+
+| Check | Result |
+|---|---|
+| Four solid colours | **4/4**, with and without the task prefix |
+| Embeddings | 768-d, finite, unit-norm, every image its own nearest neighbour |
+| Grounded retrieval, 4 described pictures | **1, 1, 1, 1** — the only model here to place every target first |
+| The same four descriptions written in Italian | **1, 1, 1, 1** — identical to English, rank for rank |
+| Speed | ~107 ms/image on an RTX 5070; **~2.2 s/image on CPU** |
+
+For comparison, both CLIP B/32 and CultureCLIP rank those four targets 1, 1, 3, 1.
+
+Two things it did **not** prove. Its 8192-token context was tested with a
+150-word catalogue description against the same picture described in one line:
+both ranked the target first, so the long context was neither shown to help nor
+shown to be useless — the task was too easy to separate them. And the task
+prefix (`"task: search result | query: "`) changed nothing on these queries; it
+is wired because the model was trained with it, not because a gain was measured.
+
+The cost is CPU time: seventy times the B/32 default. It is registered
+`gpu_recommended` for that reason, and the registry note says what an owner of a
+CPU-only machine is choosing.
+
+### A note on how speed is measured here
+
+Figures in this document now state the device. The reference machine has an
+RTX 5070, and `_select_device()` prefers CUDA when it is present, so a figure
+taken without forcing the device is a GPU figure. The CPU numbers above were
+taken with the GPU hidden. Earlier entries predating v6.9.0 are left as they
+were written: the v6.7.0 figures for HQ-CLIP (~47 ms) and PE-Core (~112 ms)
+reproduce as neither the CPU (74 and 80 ms) nor the GPU (15.6 and 15.1 ms)
+measurement on this machine, so they presumably come from a different one and
+are not re-stated here on a guess.
 
 ### Drop-in candidates — one registry entry each, no new code
 

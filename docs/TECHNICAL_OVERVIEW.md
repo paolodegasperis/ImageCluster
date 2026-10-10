@@ -248,7 +248,8 @@ Downloads the checkpoint on first use; not all hardware-verified.
 | **Jina v5 Omni Small** (V-5.5) | sentence_transformers | yes | ⚠️ Optional dep `sentence-transformers`; GPU; **license CC BY-NC 4.0 (non-commercial)**; inactive until installed; **not yet hardware-verified** |
 | **HQ-CLIP B/16** (v6.7.0) | openclip_hf_hub | yes | `hf-hub:zhixiangwei/vlm150m-hqclip-large-vitb16`, Apache-2.0; **hardware-verified on CPU** (~47 ms/image, about 2× the B/32 default) |
 | **PE-Core B/16** (v6.7.0) | openclip_hf_hub | yes | `hf-hub:timm/PE-Core-B-16`, Apache-2.0; pulls its vision tower through `timm`; 1024-d embedding; **text context 32 tokens** — long queries are truncated; **hardware-verified on CPU** (~112 ms/image) |
-| **CultureCLIP B/32** (v6.8.0) | transformers_clip | yes | `lukahh/cultureclip_sd_0303_32`, a fine-tune of `openai/clip-vit-base-patch32`; **licence undeclared on the Hub** — the CulTwin training set is CC BY-NC 4.0, so treat it as non-commercial; **hardware-verified on CPU** (~14 ms/image) |
+| **CultureCLIP B/32** (v6.8.0) | transformers_clip | yes | `lukahh/cultureclip_sd_0303_32`, a fine-tune of `openai/clip-vit-base-patch32`; **licence undeclared on the Hub** — the CulTwin training set is CC BY-NC 4.0, so treat it as non-commercial; **hardware-verified** (~30 ms/image on CPU, ~11 ms on an RTX 5070 - within a millisecond of the B/32 default either way) |
+| **EmbeddingGemma 2** (v6.9.0) | sentence_transformers | yes | `google/embeddinggemma-2`, Apache-2.0; one shared 768-d space for text and images, 100+ languages, 8192-token context; ⚠️ optional dep `sentence-transformers>=6.1`, inactive until installed; **hardware-verified** (~107 ms/image on an RTX 5070, **~2.2 s/image on CPU**) |
 
 ### ✖️ Planned (4) — NOT functional (no checkpoint/loader wired)
 Shown in `/models` for roadmap visibility; disabled in the `/clip` selector.
@@ -271,7 +272,7 @@ publication date.
 | MetaCLIP B/32 and L/14, MetaCLIP 2 Worldwide B/32 and H/14, Jina v5 Omni Small | **CC BY-NC 4.0 — non-commercial** |
 | MobileCLIP B, MobileCLIP2 S2 / B / S4 | **`apple-amlr` — research use only, and revocable** |
 | OpenCLIP, EVA-CLIP | MIT |
-| SigLIP, SigLIP 2, DINOv2, Nomic, HQ-CLIP, PE-Core, Qwen3-VL | Apache-2.0 |
+| SigLIP, SigLIP 2, DINOv2, Nomic, HQ-CLIP, PE-Core, Qwen3-VL, EmbeddingGemma 2 | Apache-2.0 |
 | CultureCLIP B/32 | **undeclared** — code Apache-2.0, CulTwin dataset CC BY-NC 4.0; assume non-commercial |
 | Visual Features | none — computed locally, no weights |
 
