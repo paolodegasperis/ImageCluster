@@ -1,5 +1,28 @@
 # Changelog
 
+## v6.9.1 - the README had stopped listing the models
+
+A reader's question, and the answer was embarrassing: EmbeddingGemma 2 was
+absent from the README. So were HQ-CLIP and PE-Core, added in v6.7.0,
+CultureCLIP, added in v6.8.0, the three MobileCLIP2 variants, MetaCLIP 2
+Worldwide B/32 and Visual Features. Eight of twenty-four offered models were
+missing, and the table still credited Nomic Embed Vision with a text search it
+has never had.
+
+Each of those releases updated the registry, the technical overview and the
+feasibility notes, and left the README alone. It is the first thing a visitor
+reads and usually the only one, so a model missing from it is a model that was
+not really announced.
+
+The table is now derived from the registry, carries the hardware tier and the
+licence restrictions each model actually declares, and
+`tests/test_readme_model_table.py` fails if a model is added to the registry
+without appearing there - or if the text-search column disagrees with what the
+model can do. The optional-installer table in the README had not learned about
+EmbeddingGemma either; it has now.
+
+No code changed, and no embedding changes.
+
 ## v6.9.0 - a model that answers in Italian, at the cost of a major upgrade
 
 The first model here that reads a query in Italian as well as it reads one in

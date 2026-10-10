@@ -18,7 +18,7 @@ ImageCluster is a local web application for exploring image collections through 
 - **Duplicate detection** - find images that are effectively the same picture: re-saves, crops, colour variants.
 - **Outlier ranking** - find the images least like anything else, which is usually where cataloguing errors hide.
 - **Compare two images** - pick any two and see exactly how they relate: the similarity, where each ranks in the other's neighbour list, and the neighbours they share.
-- **Multiple embedding models** — choose from a curated set of vision-language models (OpenCLIP, SigLIP, CLIP, DINOv2, MetaCLIP, EVA-CLIP and more), each with different strengths.
+- **Multiple embedding models** — choose from a curated set of vision-language models (OpenCLIP, SigLIP, CLIP, DINOv2, MetaCLIP, EVA-CLIP, EmbeddingGemma and more), each with different strengths.
 - **Fully local** — no cloud account, no API key required for basic use. Your images never leave your computer.
 
 ---
@@ -199,9 +199,9 @@ A few models need extra packages that are not installed by default because they 
 
 | File | Models it enables |
 |---|---|
-| `Install additional models (Windows).bat` | Qwen3-VL Embedding (2B), Jina v5 Omni (Small) |
+| `Install additional models (Windows).bat` | EmbeddingGemma 2, Qwen3-VL Embedding (2B), Jina v5 Omni (Small) |
 | `Install ImageBind (Windows).bat` | ImageBind (Huge) |
-| `Install additional models (macOS).command` | Qwen3-VL Embedding (2B), Jina v5 Omni (Small) |
+| `Install additional models (macOS).command` | EmbeddingGemma 2, Qwen3-VL Embedding (2B), Jina v5 Omni (Small) |
 | `Install ImageBind (macOS).command` | ImageBind (Huge) |
 
 After running an installer, restart the app. The newly installed models appear enabled in the model selector. Until installed they are listed but greyed out, with a note explaining the missing dependency.
@@ -214,23 +214,38 @@ After running an installer, restart the app. The newly installed models appear e
 
 | Model | Text search | Hardware |
 |---|:---:|---|
-| OpenCLIP · ViT-B/32 · LAION-2B | ✓ | CPU / GPU |
+| OpenCLIP · ViT-B-32 · LAION-2B | ✓ | CPU / GPU |
 | CLIP · OpenAI ViT-B/32 | ✓ | CPU / GPU |
 | SigLIP · Base patch16 224 | ✓ | CPU / GPU |
-| SigLIP 2 · Base patch16 224 | ✓ | CPU / GPU |
-| MobileCLIP · B | ✓ | CPU / GPU |
+| SigLIP 2 · Base patch16 224 | ✓ | GPU recommended |
+| Visual Features · OpenCV | — | CPU / GPU |
+| MobileCLIP · B · OpenCLIP checkpoint | ✓ | CPU / GPU |
 | DINOv2 · Base | — | CPU / GPU |
-| Nomic Embed Vision · v1.5 | ✓ | CPU / GPU |
+| Nomic Embed Vision · v1.5 *(unavailable)* | — | GPU recommended |
+| ImageBind · Huge *(optional)* | — | Large GPU |
+| MetaCLIP · ViT-B/32 *(NC)* | ✓ | CPU / GPU |
+| MetaCLIP · ViT-L/14 *(NC)* | ✓ | GPU recommended |
+| MetaCLIP 2 · Worldwide H/14 *(NC)* | ✓ | Large GPU |
+| MetaCLIP 2 · Worldwide B/32 *(NC)* | ✓ | GPU recommended |
+| MobileCLIP2 · S2 | ✓ | CPU / GPU |
+| MobileCLIP2 · B | ✓ | CPU / GPU |
+| MobileCLIP2 · S4 | ✓ | GPU recommended |
+| HQ-CLIP · B/16 | ✓ | CPU / GPU |
+| EmbeddingGemma 2 *(optional)* | ✓ | GPU recommended |
+| CultureCLIP · B/32 *(NC)* | ✓ | CPU / GPU |
+| PE-Core · B/16 | ✓ | CPU / GPU |
 | EVA-CLIP · L/14 | ✓ | GPU recommended |
 | EVA-CLIP · bigE/14 | ✓ | Large GPU |
-| MetaCLIP · B/32 | ✓ | CPU / GPU |
-| MetaCLIP · H/14 | ✓ | GPU recommended |
-| MetaCLIP 2 · Worldwide H/14 | ✓ | Large GPU |
-| ImageBind · Huge *(optional)* | ✓ | GPU recommended |
 | Qwen3-VL Embedding · 2B *(optional)* | ✓ | Large GPU |
 | Jina v5 Omni · Small *(optional, NC)* | ✓ | GPU recommended |
 
-Models marked *optional* require a separate installer (see above). Models shown as greyed-out in the UI are registered but not yet available on your system.
+Models marked *optional* require a separate installer (see above); *NC* marks a licence that forbids
+commercial use; *unavailable* marks an entry kept on the record with the reason written in it, shown in
+`/models` but disabled in the selector. Models greyed out in the UI are registered but not yet available
+on your system.
+
+This table is generated from `backend/encoders/registry.py` and `tests/test_readme_model_table.py`
+fails if a model is added to the registry without appearing here.
 
 ---
 
