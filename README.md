@@ -62,7 +62,19 @@ Once the app is open in the browser:
 1. Go to **`/clip`** (the app opens there directly).
 2. In the left panel, click **Scan img folder** to count your images.
 3. Choose an **embedding model**. The default (`OpenCLIP ViT-B/32 · LAION-2B`) works well for most collections.
-4. Choose a **projection method**. UMAP is the recommended default; t-SNE is an alternative for smaller collections.
+4. Choose a **projection method**. Four of them lay the map out automatically and differ in what they
+   keep faithful:
+
+   | Method | Keeps | At the cost of |
+   |---|---|---|
+   | **UMAP** (default) | legible, well-separated groups | the distances between them |
+   | **t-SNE** | a balance of both | nothing in particular; the safe second choice |
+   | **MDS** | the actual distances between images | immediate neighbourhoods; limited to 3000 images |
+   | **densMAP** | the *order* of distances | their scale |
+
+   On the 165-image reference collection MDS distorted distances least (stress 0.311 against UMAP's
+   0.376) while keeping the fewest true neighbours (36% against 51%). Those numbers are for one
+   collection: measure your own with **Analysis → Map honesty**.
 5. Optionally enable **K-Means clustering** to group images automatically.
 6. Click **Generate** and wait. The first run downloads the model weights (several hundred MB); subsequent runs reuse the cache.
 7. The 2D map appears. Use scroll to zoom, drag to pan, and hover to see image previews.

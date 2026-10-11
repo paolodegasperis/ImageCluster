@@ -16,7 +16,7 @@ visual/semantic similarity. The user flow:
 
 1. Put images in the `img/` folder.
 2. Pick an **embedding model** (CLIP-family or vision-only).
-3. **Generate** a 2D projection (UMAP or t-SNE) of the image embeddings, with
+3. **Generate** a 2D projection (UMAP, t-SNE, MDS or densMAP) of the image embeddings, with
    optional **K-Means clustering**.
 4. **Explore** the projection on an interactive canvas: pan/zoom, thumbnails,
    colored clusters, a **cluster gallery**, and **semantic text search** (for
@@ -55,7 +55,9 @@ except downloading model weights from Hugging Face on first use.
 - **PyTorch** for model execution.
 - **OpenCLIP** for OpenCLIP-compatible models; **Transformers** for HF models;
   optional **ImageBind**.
-- **UMAP** / **t-SNE** (scikit-learn) for projection; **K-Means** + silhouette
+- **UMAP** / **densMAP** (umap-learn) and **t-SNE** / **MDS** (scikit-learn) for projection, each
+  faithful to something different — see `backend/reducers.py` for the measured trade-off;
+  **K-Means** + silhouette
   score for clustering.
 - **Pillow** + **NumPy** for image I/O and vectors.
 
@@ -68,7 +70,7 @@ except downloading model weights from Hugging Face on first use.
 | `backend/main.py` | FastAPI app, routes, API endpoints, thumbnail endpoint |
 | `backend/jobs.py` | Projection job creation, progress, results |
 | `backend/cache.py` | Embedding cache helpers |
-| `backend/reducers.py` | UMAP/t-SNE/semantic-axis projection + K-Means clustering |
+| `backend/reducers.py` | UMAP/t-SNE/MDS/densMAP/semantic-axis projection + K-Means clustering |
 | `backend/layouts.py` | Grid-mosaic assignment (exact LAP, or recursive median split) |
 | `backend/neighbors.py` | k-NN graph over embeddings: cosine, mutual flags, components, Louvain communities, bridges, articulation points |
 | `backend/views.py` | Mosaic and graph views over a saved projection on disk |

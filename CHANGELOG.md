@@ -1,5 +1,70 @@
 # Changelog
 
+## v6.11.0 - two more ways to lay out a map, and a measured reason for each
+
+v6.10.0 added the instrument that says how much a projection distorts the space
+it came from. Pointing it at the projections this application actually offers
+produced an uncomfortable answer, and then two new options.
+
+### What the measurement found
+
+Nine layouts, on the 165-image reference collection, against two different sets
+of embeddings (OpenCLIP B/32 and EmbeddingGemma 2). Stress and rank correlation
+are the Map honesty panel's own numbers; kNN@10 is the share of each image's ten
+true nearest neighbours still among its ten nearest on the map, added because
+stress alone would recommend PCA, which has respectable stress and destroys
+neighbourhoods.
+
+| Layout | stress | rank corr. | kNN@10 |
+|---|---|---|---|
+| UMAP n=15 (the default) | 0.376 | 0.609 | 50.6% |
+| t-SNE perplexity 30 | 0.358 | 0.687 | 52.2% |
+| **MDS (SMACOF on cosine)** | **0.311** | 0.764 | 36.4% |
+| **densMAP** | 0.442 | **0.777** | 46.8% |
+| PCA | 0.360 | 0.614 | 31.4% |
+| Isomap | 0.358 | 0.677 | 33.8% |
+
+The first line worth noting is not a new method: **t-SNE beat UMAP on all three
+measures, with both embedding models**, and UMAP is the default. That is not
+acted on here. t-SNE and UMAP behave differently at different sizes and 165
+images is a small collection; changing the default on this evidence would be
+replacing one unmeasured choice with another. The instrument now ships, so the
+question can be settled on a collection where the answer matters.
+
+### MDS
+
+The literal answer to "lay this out so the picture agrees with the vectors":
+SMACOF minimises the distortion of distances directly, and it is handed the
+cosine distances the rest of the application uses rather than the raw vectors.
+Lowest stress of anything tested, by a clear margin, and it pays for it in local
+neighbourhoods - a third of each image's true neighbours rather than half.
+
+It compares every pair at every step: about 2 s at 1500 images and 55 s at 3000
+on the reference machine. Past 3000 it is refused with a message that says what
+to do instead, the way the neighbour graph and the duplicate scan already do.
+
+### densMAP
+
+One flag on the UMAP already installed. It adds a density term to the same
+objective, so dense regions stay dense instead of being inflated to fill the
+page. The best rank correlation of anything tested - it gets the *order* of
+distances right more often than any other layout - while bending their scale
+more than any other. No new dependency, no settings of its own.
+
+### In the application
+
+The projection selector now lists four automatic methods, each labelled with
+what it keeps rather than with how advanced it is: *UMAP - readable groups*,
+*t-SNE - balanced*, *MDS - faithful distances, small sets*, *densMAP - faithful
+order of distances*. Both new methods were run through the real job pipeline on
+the reference collection, and the projections they produced were measured with
+the Map honesty panel: MDS 0.311, densMAP 0.453, matching the bench exactly.
+
+`tests/test_reducers_and_clustering.py` asserts the claim each method is offered
+on, not merely that it returns two columns: MDS must distort distances less than
+UMAP on a planted gradient, or the implementation is wrong - most likely by
+having been handed the vectors instead of the distances.
+
 ## v6.10.0 - two views: how much the map lies, and what lies between two images
 
 Both read embeddings already on disk, so neither loads a model and both work

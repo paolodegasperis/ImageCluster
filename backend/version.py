@@ -7,7 +7,7 @@ requirements.txt and the HTML titles, and the product name alternated between
 
 from __future__ import annotations
 
-__version__ = "6.10.0"
+__version__ = "6.11.0"
 __app_name__ = "ImageCluster"
 # Kept for log/debug output so older bug reports remain searchable.
 __legacy_name__ = "ImagePlot-CLIP"

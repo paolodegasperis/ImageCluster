@@ -70,14 +70,18 @@
           <div class="step-body">
             <label class="label" for="reducer">Projection method</label>
             <select class="select" id="reducer"
-                    title="UMAP and t-SNE decide for themselves what the axes mean, and the answer is nothing you can put into words. Semantic axes let you name both axes yourself, so left and right mean something.">
-              <option value="umap">UMAP - recommended</option>
-              <option value="tsne">t-SNE - advanced</option>
+                    title="UMAP, t-SNE, MDS and densMAP all decide for themselves what the axes mean, and the answer is nothing you can put into words; they differ in what they keep faithful. UMAP separates groups legibly. t-SNE is the balanced choice. MDS reproduces the actual distances between images, at the cost of their immediate neighbourhoods, and is limited to 3000 images. densMAP keeps the order of distances rather than their scale. Semantic axes let you name both axes yourself, so left and right mean something. The Map honesty panel measures any of them on your own collection.">
+              <option value="umap">UMAP - readable groups</option>
+              <option value="tsne">t-SNE - balanced</option>
+              <option value="mds">MDS - faithful distances, small sets</option>
+              <option value="densmap">densMAP - faithful order of distances</option>
               <option value="semantic">Semantic axes - you name them</option>
             </select>
             <div class="seg projection-seg" aria-hidden="true">
               <button type="button" data-reducer-choice="umap" class="active">UMAP</button>
               <button type="button" data-reducer-choice="tsne">t-SNE</button>
+              <button type="button" data-reducer-choice="mds">MDS</button>
+              <button type="button" data-reducer-choice="densmap">densMAP</button>
               <button type="button" data-reducer-choice="semantic">Named</button>
             </div>
 
@@ -120,6 +124,12 @@
                 <div class="lbl"><span>t-SNE iterations</span></div>
                 <input class="input mono" id="tsneIterations" type="number" min="250" max="5000" value="1000" />
               </div>
+              <p class="help">
+                MDS and densMAP take no settings of their own. On the 165-image reference collection MDS
+                distorted distances least (stress 0.311 against UMAP's 0.376) while keeping fewest true
+                neighbours (36% against 51%), and densMAP got the order of distances right most often.
+                Measure any of them on your own collection with <strong>Analysis &rarr; Map honesty</strong>.
+              </p>
               <label class="check-row"><input id="useCache" type="checkbox" checked /> Reuse cached embeddings when available</label>
               <label class="check-row"><input id="showPlannedModels" type="checkbox" /> Show planned roadmap models</label>
             </details>

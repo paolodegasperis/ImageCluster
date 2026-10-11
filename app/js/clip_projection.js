@@ -1612,7 +1612,9 @@ function fitView(redraw = true) {
 function syncReducerVisuals() {
   if (!has('reducer')) return;
   const value = $('reducer').value;
-  setText('workflowReducerShort', value === 'semantic' ? 'NAMED' : value.toUpperCase());
+  // densMAP keeps its own capitalisation: it is a name, not an acronym.
+  const shortLabel = { semantic: 'NAMED', densmap: 'densMAP' };
+  setText('workflowReducerShort', shortLabel[value] || value.toUpperCase());
   updateSemanticAxesVisibility();
   document.querySelectorAll('[data-reducer-choice]').forEach(button => {
     button.classList.toggle('active', button.dataset.reducerChoice === value);

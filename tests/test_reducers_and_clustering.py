@@ -12,11 +12,13 @@ import pytest
 
 from backend.encoders.visual_features_encoder import FEATURE_NAMES, feature_column_names
 from backend.reducers import (
+    MAX_MDS_IMAGES,
     cluster_feature_matrix,
     cluster_projection,
     project_visual_features,
     reduce_embeddings,
 )
+from backend.shepard import _stress
 
 
 def test_reduce_embeddings_rejects_single_row():
@@ -114,3 +116,80 @@ def test_feature_column_names_start_with_the_named_scalars():
     names = feature_column_names()
     assert names[: len(FEATURE_NAMES)] == FEATURE_NAMES
     assert len(names) > len(FEATURE_NAMES)
+
+
+# --------------------------------------------------------------------------
+# MDS and densMAP, added in v6.11.0
+#
+# Both are offered for one reason: they keep something about the embedding
+# distances that UMAP does not. A test that only checked they return two columns
+# would not notice if that reason stopped being true.
+
+
+def _gradient(count: int = 48, dim: int = 24) -> np.ndarray:
+    """Images strung along one direction, the shape a period or a palette makes.
+
+    A layout faithful to these vectors has to come out roughly as a line; one
+    that does not is distorting something it had no need to distort.
+    """
+    rng = np.random.default_rng(3)
+    base = rng.normal(0, 1, dim)
+    base /= np.linalg.norm(base)
+    step = rng.normal(0, 1, dim)
+    step -= step @ base * base
+    step /= np.linalg.norm(step)
+
+    rows = []
+    for index in range(count):
+        centre = base + step * (index / (count - 1) * 1.8)
+        centre /= np.linalg.norm(centre)
+        rows.append(centre + rng.normal(0, 0.02, dim))
+    matrix = np.vstack(rows).astype("float32")
+    return matrix / np.linalg.norm(matrix, axis=1, keepdims=True)
+
+
+def _stress_of(vectors: np.ndarray, coords: np.ndarray) -> float:
+    """The same measure the Map honesty panel reports, over every pair."""
+    unit = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+    i, j = np.triu_indices(len(unit), k=1)
+    embedding = 1.0 - np.einsum("ij,ij->i", unit[i], unit[j])
+    delta = coords[i].astype("float64") - coords[j].astype("float64")
+    mapped = np.sqrt(np.einsum("ij,ij->i", delta, delta))
+    return _stress(embedding / embedding.max(), mapped / mapped.max())
+
+
+def test_mds_and_densmap_return_a_usable_projection():
+    vectors = _gradient()
+    for reducer in ("mds", "densmap"):
+        coords = reduce_embeddings(vectors, reducer)
+        assert coords.shape == (len(vectors), 2), reducer
+        assert coords.dtype == np.dtype("float32"), reducer
+        assert np.isfinite(coords).all(), reducer
+
+
+def test_mds_distorts_distances_less_than_umap():
+    """The claim the method is offered on, asserted rather than assumed.
+
+    MDS minimises this exact quantity, so if it ever stops winning here the
+    implementation is wrong - most likely by being handed the vectors instead of
+    the cosine distances.
+    """
+    vectors = _gradient()
+    mds = _stress_of(vectors, reduce_embeddings(vectors, "mds"))
+    umap_stress = _stress_of(vectors, reduce_embeddings(vectors, "umap"))
+    assert mds < umap_stress
+
+
+def test_mds_refuses_a_collection_it_cannot_finish():
+    """O(n**2) per iteration: past the cap this is a hang, not a projection, and
+    the message has to say what to do instead."""
+    oversized = np.random.default_rng(0).normal(0, 1, (MAX_MDS_IMAGES + 1, 8)).astype("float32")
+    with pytest.raises(ValueError, match="limited to"):
+        reduce_embeddings(oversized, "mds")
+
+
+def test_the_cap_applies_only_to_mds():
+    """densMAP builds a neighbour graph like UMAP and scales like it, so it must
+    not inherit a limit that belongs to a different algorithm."""
+    vectors = _gradient(count=30)
+    assert reduce_embeddings(vectors, "densmap").shape == (30, 2)

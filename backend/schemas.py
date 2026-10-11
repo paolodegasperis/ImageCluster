@@ -16,7 +16,7 @@ class ClipProjectionRequest(BaseModel):
     model_key: str | None = Field(default=None)
     model: str = Field(default="ViT-B-32")
     pretrained: str = Field(default="laion2b_s34b_b79k")
-    reducer: str = Field(default_factory=lambda: config_get("default_reducer", "umap"), pattern="^(umap|tsne|semantic)$")
+    reducer: str = Field(default_factory=lambda: config_get("default_reducer", "umap"), pattern="^(umap|tsne|mds|densmap|semantic)$")
     batch_size: int = Field(default_factory=lambda: int(config_get("batch_size", 32)), ge=1, le=256)
     use_cache: bool = True
     umap_n_neighbors: int = Field(default=15, ge=2, le=200)
