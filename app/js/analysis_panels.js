@@ -588,11 +588,24 @@ function rankVerdict(data) {
 }
 
 
+// A dense row of neighbours needs a tile, not a card: at 130px there is no
+// width for Similar / Compare / Open, and the whole tile already acts as one
+// button. Same markup as the Compare page, so both read alike.
+function sharedNeighbourMarkup(item) {
+  return `
+    <article class="cmp-neighbour" data-similar-to="${escapeHtml(item.relative_path)}"
+             title="${escapeHtml(item.filename)} - click to search from this image">
+      <img src="${escapeHtml(thumbUrl(item, 200))}" alt="" loading="lazy" />
+      <div class="cmp-neighbour-name">${escapeHtml(item.filename)}</div>
+      <div class="cmp-neighbour-scores mono">
+        <span title="Similarity to A">A ${item.similarity_to_a.toFixed(3)}</span>
+        <span title="Similarity to B">B ${item.similarity_to_b.toFixed(3)}</span>
+      </div>
+    </article>`;
+}
+
 function renderComparison(data) {
-  const shared = data.shared_neighbours.map(item => cardMarkup(item, {
-    size: 120,
-    meta: [`A ${item.similarity_to_a.toFixed(3)}`, `B ${item.similarity_to_b.toFixed(3)}`],
-  })).join('');
+  const shared = data.shared_neighbours.map(sharedNeighbourMarkup).join('');
 
   const pct = similarityPercent(data.similarity);
   const medianPct = similarityPercent(data.median_similarity);
@@ -644,11 +657,16 @@ function renderComparison(data) {
         resemblance.
       </p>
       ${shared
-        ? `<div class="gallery-grid analysis-grid cmp-shared-grid">${shared}</div>`
+        ? `<div class="cmp-neighbours cmp-shared-grid">${shared}</div>`
         : '<p class="help cmp-empty">These two share no close neighbours at all — whatever relationship they have is direct, not through a common neighbourhood.</p>'}
     </section>`;
 
   wireCards($('compareBody'));
+
+  // The modal is the quick look; the page is the workspace. The link carries
+  // the pair across so nothing has to be picked twice.
+  const openPage = $('compareOpenPageBtn');
+  if (openPage) openPage.href = comparePageUrl(data.a.relative_path, data.b.relative_path);
 }
 
 function closeComparison() {
@@ -831,96 +849,19 @@ function wireShepardPairs() {
   document.querySelectorAll('[data-chain-pair]').forEach(button => {
     button.addEventListener('click', () => {
       const pair = button.dataset.chainPair.split('|');
-      clearComparison();
-      addToComparison(pair[0]);
-      addToComparison(pair[1]);
-      showAnalysisTool('chain');
-      runChain();
+      window.open(comparePageUrl(pair[0], pair[1]), '_blank', 'noopener');
     });
   });
 }
 
-// --------------------------------------------------------------------------
-// 1.6 The chain between two images
-//
-// Similar images answers "what else looks like this?" and Compare answers "how
-// related are these two?". Neither says what lies between them. The chain walks
-// the neighbour graph from one image to the other, so a similarity of 0.38
-// becomes the six pictures that carry one into the other.
-
-async function runChain() {
-  if (!analysisReady('chainStatus')) return;
-  if (!comparePicks.a || !comparePicks.b) {
-    setText('chainStatus', 'Pick two images first: the Compare tray appears as soon as you add one.');
-    return;
-  }
-  setText('chainStatus', 'Walking the graph...');
-  setHTML('chainResults', '');
-  try {
-    const data = await analysisRequest('/api/analysis/chain', {
-      from_path: comparePicks.a.relative_path,
-      to_path: comparePicks.b.relative_path,
-      k: Number(($('chainK') || {}).value || 6),
-    });
-    renderChain(data);
-  } catch (err) {
-    setText('chainStatus', 'Chain failed: ' + err.message);
-  }
-}
-
-function renderChain(data) {
-  if (!data.connected) {
-    setText('chainStatus', 'No chain at k=' + data.k);
-    setHTML('chainResults', '<p class="help">' + escapeHtml(data.reason) + '</p>');
-    return;
-  }
-  setText('chainStatus',
-    data.hops + (data.hops === 1 ? ' step' : ' steps') + ' at k=' + data.k
-    + ' · the two images are ' + data.direct_similarity.toFixed(3) + ' similar directly'
-    + ' · weakest link ' + data.weakest_link.toFixed(3));
-
-  // Images and links alternate, so each similarity sits under the step it
-  // describes rather than beside an image it only half belongs to.
-  const parts = [];
-  data.steps.forEach((step, index) => {
-    const role = index === 0 ? 'from' : (index === data.steps.length - 1 ? 'to' : '');
-    parts.push('<figure class="chain-step' + (role ? ' chain-end' : '') + '"'
-      + ' data-path="' + escapeHtml(step.relative_path) + '">'
-      // No lazy loading: a chain is a dozen images at most, it lives inside the
-      // dock's own scroller, and deferring them leaves the strip blank there.
-      + '<img src="' + escapeHtml(thumbUrl(step, 140)) + '" alt="" />'
-      + '<figcaption>' + escapeHtml(step.filename)
-      + (role ? '<span class="chain-role">' + role + '</span>' : '')
-      + '</figcaption></figure>');
-    if (index < data.links.length) {
-      parts.push('<div class="chain-link" title="Cosine similarity between these two neighbours">'
-        + '<span class="chain-arrow">→</span>'
-        + '<span class="mono">' + data.links[index].toFixed(3) + '</span></div>');
-    }
-  });
-  setHTML('chainResults', '<div class="chain-strip">' + parts.join('') + '</div>');
-
-  // The same interaction contract as every other panel: click focuses the image
-  // on the plot, double-click opens the preview.
-  document.querySelectorAll('#chainResults .chain-step').forEach(figure => {
-    const path = figure.dataset.path;
-    figure.addEventListener('click', () => focusSearchResult(path));
-    figure.addEventListener('dblclick', () => {
-      const row = state.rows.find(item => item.relative_path === path);
-      if (row) openImagePreview(row);
-    });
-  });
+// One place builds the link into the Compare page, so the pair and the
+// projection always travel together.
+function comparePageUrl(pathA, pathB) {
+    const params = new URLSearchParams({ path: state.resultPath || '' });
+    if (pathA) params.set('a', pathA);
+    if (pathB) params.set('b', pathB);
+    return `/compare?${params.toString()}`;
 }
 
 const shepardRunBtn = $('shepardRunBtn');
 if (shepardRunBtn) shepardRunBtn.addEventListener('click', runShepard);
-const chainRunBtn = $('chainRunBtn');
-if (chainRunBtn) chainRunBtn.addEventListener('click', runChain);
-const chainFromTrayBtn = $('chainFromTrayBtn');
-if (chainFromTrayBtn) {
-  chainFromTrayBtn.addEventListener('click', () => {
-    if (typeof selectDockPane === 'function') selectDockPane('analysis', true);
-    showAnalysisTool('chain');
-    runChain();
-  });
-}

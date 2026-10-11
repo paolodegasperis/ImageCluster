@@ -271,6 +271,11 @@ def search_rebuild_index(req: RebuildSearchIndexRequest) -> dict:
     return {"job_id": job.job_id, "status": job.status, "message": "Started embedding/projection job for searchable index."}
 
 
+@app.get("/compare", response_class=HTMLResponse)
+def compare_page() -> str:
+    return _page("compare.html")
+
+
 @app.get("/graph", response_class=HTMLResponse)
 def neighbor_graph_page() -> str:
     return _page("neighbor_graph.html")

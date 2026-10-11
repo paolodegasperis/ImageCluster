@@ -1,5 +1,67 @@
 # Changelog
 
+## v6.12.0 - comparing two images becomes a place, and the labels stay inside their boxes
+
+### A page of its own
+
+Comparing two images was a dialog opened from the projection page, which made
+it something you did *while* reading the map. It is often the work itself, and
+a dialog is the wrong shape for that: the two images had to be found on the map
+first, which is impossible when they are not near each other, and the chain
+between them lived in a separate panel.
+
+`/compare` puts the whole thing on one screen. A mosaic of the entire
+collection - filterable by file name and by cluster, loaded 150 images at a
+time so a large archive does not lock the browser - and two slots. Click any
+thumbnail to fill A, a second to fill B, click a chosen one to remove it. Both
+filled, the page shows everything at once: the similarity with its context (the
+collection's median pair, the reciprocal ranks, the percentile), the chain of
+neighbours that carries one image into the other with k adjustable beside it,
+and the neighbours the two have in common. Clicking anything in the result puts
+it back in a slot, which is the only navigation the page needs.
+
+The dialog stays on the projection page for the quick look, and now carries an
+*Open in Compare* link that hands the pair over, so nothing is picked twice.
+The chain panel added in v6.10.0 has been **removed** from the projection page:
+one feature, one home.
+
+### Labels that stay inside their boxes
+
+Three real clipping defects, found by measuring rather than by looking:
+
+- **`Open` printed past the right edge of a card.** `.card-actions` was a flex
+  row of three items with no wrap, inside a column that can be 160px wide. A
+  flex item defaults to `min-width: auto`, which refuses to shrink below its own
+  text, so the third one escaped instead of moving down.
+- **The comparison dialog scrolled sideways** and sliced its last row of
+  thumbnails. The shared neighbours were full analysis cards - thumbnail, name,
+  two scores and three buttons - in 120px cells. They are now compact tiles: the
+  whole tile is the click target, which is what the three buttons were for.
+- **`densMAP` overflowed the projection selector**, whose segmented control was
+  a fixed 140px two-column grid built when there were three methods.
+
+A fourth was found while checking the rest: the graph view's row of seven
+readings stopped fitting below about 1300px and printed the last one past its
+own border.
+
+Every page was then swept at 1440, 1280, 1100, 1024 and 820 pixels, listing any
+element whose content is wider than its box. The list is now empty on
+`/`, `/clip`, `/graph`, `/lens` and `/compare`, with the comparison dialog open
+and the result cards at their smallest setting.
+
+### On the restraint
+
+The first draft of the Compare page put a sentence of explanation under every
+number. That was the wrong instinct - people operating a tool do not read, and
+a screen of prose is a screen nobody scans. The explanations went back into the
+tooltip and the guide; what stayed visible is a title, the number, and one short
+line where a figure is meaningless without it.
+
+`tests/test_pages.py` checks that every page answers, that its assets carry the
+version stamp, that every id `compare.js` reaches for exists in the markup -
+a missing one is a blank screen rather than an error - and that the chain has
+exactly one home.
+
 ## v6.11.0 - two more ways to lay out a map, and a measured reason for each
 
 v6.10.0 added the instrument that says how much a projection distorts the space

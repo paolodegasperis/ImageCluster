@@ -17,7 +17,7 @@ ImageCluster is a local web application for exploring image collections through 
 - **Find similar images** - pick any image and rank the whole collection by likeness to it. No model is loaded, so this works even with the image-only models that cannot search by text.
 - **Duplicate detection** - find images that are effectively the same picture: re-saves, crops, colour variants.
 - **Outlier ranking** - find the images least like anything else, which is usually where cataloguing errors hide.
-- **Compare two images** - pick any two and see exactly how they relate: the similarity, where each ranks in the other's neighbour list, and the neighbours they share.
+- **Compare two images** - a page of its own: pick any two from a mosaic of the whole collection and see exactly how they relate. The similarity in context, where each ranks in the other's neighbour list, the chain of neighbours that carries one into the other, and the neighbours they share.
 - **Map honesty** - measure how much the 2D map distorts the space it came from. Every pair of images is measured twice, by the model and by the map, and the two are drawn against each other; the pairs the layout describes worst are named, in both directions.
 - **The chain between two images** - pick two pictures and walk the shortest route between them through the nearest-neighbour graph. Five or six images that turn the first into the second, each step carrying its own similarity.
 - **Multiple embedding models** — choose from a curated set of vision-language models (OpenCLIP, SigLIP, CLIP, DINOv2, MetaCLIP, EVA-CLIP, EmbeddingGemma and more), each with different strengths.
@@ -272,6 +272,7 @@ fails if a model is added to the registry without appearing here.
 | `http://127.0.0.1:8765/graph` | Nearest-neighbor graph — communities, bridges, projection stress |
 | `http://127.0.0.1:8765/guide` | What each function does — every feature in plain language |
 | `POST /api/exports/sheet` | A result as a PDF contact sheet (needs the optional `fpdf2` package) |
+| `http://127.0.0.1:8765/compare` | Compare two images: similarity in context, the chain that links them, the neighbours they share |
 | `http://127.0.0.1:8765/lens` | Lenses — what separates two groups, concept arithmetic, model disagreement |
 | `http://127.0.0.1:8765/models` | Model guide, capability cards, HF token settings, glossary |
 | `http://127.0.0.1:8765/api/status` | JSON dependency status |

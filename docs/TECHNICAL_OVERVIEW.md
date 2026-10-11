@@ -145,6 +145,7 @@ standard deviations, not cosines.
 | `POST /api/semantic/distinguish` | The direction between two groups, read back as words — added v6.4 |
 | `POST /api/semantic/arithmetic` | Image ± phrases, ranked against the collection — added v6.4 |
 | `POST /api/analysis/shepard` | Embedding distance against map distance over a sample of pairs, with rank correlation, Kruskal stress-1 and the worst-described pairs in each direction - added v6.10 |
+| `GET /compare` | The Compare page: pick two images from a mosaic of the collection and see everything it knows about the pair - added v6.12 |
 | `POST /api/analysis/chain` | Shortest route between two images through the k-NN graph, weighted by `1 - similarity` - added v6.10 |
 | `POST /api/analysis/disagreement` | Neighbourhood overlap between two projections — added v6.4 |
 | `POST /api/exports/sheet` | Any result as a PDF contact sheet; one route serves all three surfaces — added v6.5 |

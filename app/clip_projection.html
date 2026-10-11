@@ -20,6 +20,7 @@
       <strong>Embedding Projection</strong>
       <span class="topbar-spacer"></span>
       <a href="/graph">Neighbor graph</a>
+      <a href="/compare" title="Pick any two images and see everything this collection knows about the pair">Compare</a>
       <a href="/lens" title="Questions the map cannot answer: what separates two groups in words, concept arithmetic, and where two models disagree">Lenses</a>
       <a href="/guide" title="Plain-language explanation of every feature in the app">Guide</a>
       <span class="chip chip-success dot" id="topbarStatusChip">System ready</span>
@@ -318,8 +319,6 @@
                         title="Find the images least like anything else in the collection">Outliers</button>
                 <button type="button" data-analysis-tool="shepard"
                         title="Measure how much the 2D map distorts the distances it came from">Map honesty</button>
-                <button type="button" data-analysis-tool="chain"
-                        title="Show the shortest chain of neighbours linking two images">Chain</button>
               </div>
               <div class="dc-spacer"></div>
               <span class="small muted">Both read the stored embeddings — no model is loaded.</span>
@@ -371,20 +370,6 @@
               <div id="shepardResults" class="analysis-host"></div>
             </div>
 
-            <div data-analysis-panel="chain" hidden>
-              <div class="dock-controls sub-controls">
-                <div class="dc-field" title="The neighbour graph the route runs on. A smaller k forces longer detours and can leave two images unconnected; a larger one makes the jumps bolder.">
-                  <span class="lbl">Neighbours (k)</span>
-                  <input class="input mono" id="chainK" type="number" min="1" max="50" value="6" />
-                </div>
-                <button class="btn btn-sm" type="button" id="chainRunBtn"
-                        title="Find the shortest chain of neighbours between the two picked images">Find the chain</button>
-                <div class="dc-spacer"></div>
-                <span class="small muted">Pick two images with the Compare tray, then find the chain between them.</span>
-              </div>
-              <div id="chainStatus" class="small dock-summary">Pick two images first: use the Similar button on any card, or the Compare tray.</div>
-              <div id="chainResults" class="analysis-host"></div>
-            </div>
           </section>
 
           <section class="dock-pane" id="searchDockPane">
@@ -576,8 +561,6 @@
       <span class="ct-hint" id="compareHint">Pick a second image</span>
       <button class="btn btn-sm" type="button" id="compareRunBtn" disabled
               title="Show how these two images relate">Compare</button>
-      <button class="btn btn-sm" type="button" id="chainFromTrayBtn" disabled
-              title="Show the shortest chain of neighbours between these two images">Chain</button>
       <button class="btn btn-icon btn-ghost btn-sm" type="button" id="compareCloseBtn"
               title="Clear the comparison tray" aria-label="Clear">&times;</button>
     </div>
@@ -587,6 +570,9 @@
       <article class="compare-panel" role="dialog" aria-modal="true" aria-labelledby="compareTitle">
         <header class="compare-head">
           <h2 id="compareTitle">How related are these two?</h2>
+          <span class="compare-head-spacer"></span>
+          <a class="btn btn-sm" id="compareOpenPageBtn" href="/compare"
+             title="Open this pair in the Compare page: the chain between them, their shared neighbours, and a mosaic to pick other images">Open in Compare</a>
           <button class="btn btn-icon btn-ghost btn-sm" type="button" data-close-compare aria-label="Close">&times;</button>
         </header>
         <div class="compare-body" id="compareBody"></div>

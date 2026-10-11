@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Compare - ImageCluster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="redesign compare-page" data-density="cozy">
+  <main class="cmp-shell" data-screen-label="04 Compare">
+    <header class="topbar">
+      <div class="brand-mark">P</div>
+      <strong>Projector</strong>
+      <a href="/">Dashboard</a>
+      <span>/</span>
+      <a href="/clip">Embedding Projection</a>
+      <span>/</span>
+      <strong>Compare</strong>
+      <span class="topbar-spacer"></span>
+      <a class="btn btn-sm btn-ghost" href="/graph"
+         title="The nearest-neighbour graph of the whole collection">Neighbor graph</a>
+      <a class="btn btn-sm btn-ghost" href="/guide"
+         title="Plain-language explanation of every feature in the app">Guide</a>
+      <span class="chip chip-warn dot" id="cmpStatusChip"
+            title="Which projection is loaded and how many images it holds">No projection</span>
+    </header>
+
+    <aside class="cmp-rail">
+      <div class="lr-scroll">
+        <div class="section-title-rail"><span>Source</span></div>
+        <section class="step open active">
+          <div class="step-body">
+            <label class="label" for="cmpProjection">Projection</label>
+            <select class="select mono" id="cmpProjection"
+                    title="Which saved projection to read. Everything on this page is computed from that projection's stored embeddings, so nothing is re-encoded and no model is loaded.">
+              <option value="">Loading...</option>
+            </select>
+            <div class="status-banner idle" id="cmpSourceInfo">Choose a saved projection.</div>
+          </div>
+        </section>
+
+        <div class="section-title-rail"><span>Your two images</span></div>
+        <section class="step open active">
+          <div class="step-body">
+            <div class="cmp-slots">
+              <button class="cmp-slot" type="button" id="cmpSlotA" data-slot="a"
+                      title="First image. Click to remove it.">
+                <span class="cmp-slot-tag">A</span>
+                <span class="cmp-slot-empty">Click a thumbnail</span>
+              </button>
+              <button class="cmp-slot" type="button" id="cmpSlotB" data-slot="b"
+                      title="Second image. Click to remove it.">
+                <span class="cmp-slot-tag">B</span>
+                <span class="cmp-slot-empty">Click a second one</span>
+              </button>
+            </div>
+            <div class="cmp-slot-actions">
+              <button class="btn btn-sm" type="button" id="cmpSwapBtn" disabled
+                      title="Swap A and B">Swap</button>
+              <button class="btn btn-sm btn-ghost" type="button" id="cmpClearBtn" disabled
+                      title="Clear both choices">Clear</button>
+            </div>
+          </div>
+        </section>
+
+        <div class="section-title-rail"><span>Chain</span></div>
+        <section class="step open active">
+          <div class="step-body">
+            <div class="fld"
+                 title="How many nearest neighbours each image may step to. A small k forces long detours and can leave the two images in unconnected parts of the collection; a larger k takes bolder steps.">
+              <div class="lbl"><span>Neighbours per step (k)</span><span class="mono" id="cmpKValue">6</span></div>
+              <input id="cmpK" type="range" min="1" max="30" value="6" aria-label="Neighbours per step" />
+            </div>
+          </div>
+        </section>
+      </div>
+    </aside>
+
+    <section class="cmp-center">
+      <div class="cmp-result" id="cmpResult" hidden></div>
+
+      <div class="cmp-placeholder" id="cmpPlaceholder">
+        <h3>Pick two images</h3>
+        <p>Click any two thumbnails below. Everything this collection knows about the pair appears here.</p>
+      </div>
+
+      <div class="cmp-picker">
+        <div class="cmp-picker-bar">
+          <strong class="cmp-picker-title">All images</strong>
+          <span class="chip" id="cmpCount" title="How many images match the current filter">0</span>
+          <input class="input" id="cmpFilter" type="search" placeholder="Filter by file name"
+                 aria-label="Filter by file name" />
+          <select class="select" id="cmpCluster" aria-label="Filter by cluster"
+                  title="Show only images in one cluster">
+            <option value="">All clusters</option>
+          </select>
+          <span class="cmp-picker-spacer"></span>
+          <label class="check-row" title="Larger thumbnails, fewer per row">
+            <input id="cmpBigThumbs" type="checkbox" /> Large
+          </label>
+        </div>
+        <div class="cmp-mosaic" id="cmpMosaic" role="listbox" aria-label="Images to compare"></div>
+        <div class="cmp-more" id="cmpMore" hidden>
+          <button class="btn btn-sm" type="button" id="cmpMoreBtn">Show more</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/help_language.js"></script>
+  <script src="/static/js/compare.js"></script>
+</body>
+</html>
