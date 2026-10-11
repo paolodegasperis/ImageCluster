@@ -31,7 +31,10 @@ const state = {
   comparison: null,
   chain: null,
   k: 6,
-  thumb: 92,
+  // Collapsed is a state the reader chooses. Until they do, the page chooses:
+  // open while there is nothing to compare, out of the way once there is.
+  collapsed: false,
+  collapseChosen: false,
 };
 
 function setText(id, value) {
@@ -199,8 +202,22 @@ function afterPickChange() {
   markPicked();
   state.comparison = null;
   state.chain = null;
-  if (state.picks.a && state.picks.b) run();
+  const both = Boolean(state.picks.a && state.picks.b);
+  if (!state.collapseChosen) setCollapsed(both);
+  if (both) run();
   else renderResult();
+}
+
+function setCollapsed(collapsed) {
+  state.collapsed = collapsed;
+  document.querySelector('.cmp-picker').classList.toggle('collapsed', collapsed);
+  const button = $('cmpExpandBtn');
+  button.textContent = collapsed ? 'Expand' : 'Collapse';
+  button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  // Expanding is a request to use the mosaic, so put it where it can be used.
+  if (!collapsed && state.comparison) {
+    document.querySelector('.cmp-picker').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 function renderSlots() {
@@ -442,11 +459,20 @@ $('cmpK').addEventListener('input', event => {
 });
 $('cmpK').addEventListener('change', runChainOnly);
 
-// Scrolling to the end of the mosaic loads the next page: the button stays for
-// anyone who prefers it, and for keyboard users who never scroll into view.
-$('cmpMosaic').addEventListener('scroll', () => {
-  const el = $('cmpMosaic');
-  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) showMore();
+$('cmpExpandBtn').addEventListener('click', () => {
+  state.collapseChosen = true;
+  setCollapsed(!state.collapsed);
+});
+
+// Reaching the end loads the next page. Which element does the scrolling
+// depends on the state - the mosaic when collapsed, the page when not - so both
+// are watched, and the button stays for anyone who would rather click.
+function maybeLoadMore(el) {
+  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 240) showMore();
+}
+$('cmpMosaic').addEventListener('scroll', event => maybeLoadMore(event.currentTarget));
+document.querySelector('.cmp-center').addEventListener('scroll', event => {
+  if (!state.collapsed) maybeLoadMore(event.currentTarget);
 });
 
 renderSlots();

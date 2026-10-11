@@ -25,6 +25,19 @@ The dialog stays on the projection page for the quick look, and now carries an
 The chain panel added in v6.10.0 has been **removed** from the projection page:
 one feature, one home.
 
+### The mosaic is expandable, and stops being squeezed
+
+First reported from use: with both images chosen, the mosaic at the bottom of
+the page shrank to a sliver that could barely be scrolled. The `max-height` was
+not the culprit. A flex child shrinks by default, so once the comparison filled
+the column the picker was squeezed to its own padding - a 24px strip with a
+scrollbar inside a page that also scrolled, which is the worst of both.
+
+The sections of that column now keep their natural height and only the column
+scrolls. The mosaic is full height while there is nothing to compare, folds to
+a browsable strip once there is, and a button in its bar opens it back - after
+which the page stops deciding, because the reader has.
+
 ### Labels that stay inside their boxes
 
 Three real clipping defects, found by measuring rather than by looking:

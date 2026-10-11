@@ -4902,6 +4902,11 @@ body.workflow-page {
   padding: 18px 22px 28px;
   gap: 18px;
 }
+/* A flex child shrinks by default. Once the comparison filled this column the
+   mosaic below it was squeezed to its padding - two rows of thumbnails became
+   a 24px sliver with a scrollbar of its own. The sections keep their natural
+   height and the column scrolls instead. */
+.cmp-center > * { flex: 0 0 auto; }
 
 /* --- the two slots ------------------------------------------------------- */
 .cmp-slots {
@@ -4995,10 +5000,28 @@ body.workflow-page {
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 8px;
   padding: 12px;
-  max-height: 48vh;
-  overflow-y: auto;
 }
 .cmp-mosaic.large { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); }
+
+/* Expanded is the normal state: the mosaic is as tall as it needs to be and the
+   page scrolls, which is the one scrollbar the reader already understands.
+   A box with its own scroller inside a scrolling page is the arrangement that
+   made this strip unusable - you scroll the page to reach it, and then have to
+   notice that it scrolls too. */
+.cmp-picker.collapsed .cmp-mosaic {
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.cmp-expand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The picker is the whole point of the page when nothing is chosen yet, so it
+   keeps a floor of its own: a strip two rows high is a strip nobody can pick
+   from. */
+.cmp-picker { scroll-margin-top: 12px; }
 
 .cmp-tile {
   position: relative;
