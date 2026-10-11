@@ -1,5 +1,70 @@
 # Changelog
 
+## v6.10.0 - two views: how much the map lies, and what lies between two images
+
+Both read embeddings already on disk, so neither loads a model and both work
+with the image-only encoders that cannot search by text at all.
+
+### Map honesty
+
+Every projection flattens hundreds of dimensions onto a page and bends
+something; the map never says which. The neighbour graph already colours each
+edge by that discrepancy. This reads it globally: for a sample of image pairs,
+the distance in the embedding space against the distance on the map, drawn as a
+density plot.
+
+Two numbers come with the picture. Rank correlation says how often the map gets
+the *order* of two distances right; Kruskal's stress-1 says how much it bends
+them. Below about 0.1 the distances can be read directly; above 0.2 the layout
+is also telling a story of its own, and the honest response is to read
+neighbourhoods instead of gaps.
+
+Measured on the 165-image reference collection, the default UMAP layout scores a
+rank correlation of 0.595 and a stress of 0.396. That is a heavily distorted
+map, and it was worth finding out: the scatter has been read as though distances
+on it meant something.
+
+The two lists under the plot name the pairs the map describes worst, and they
+fail in opposite directions. *Drawn closer than they are* is the dangerous one -
+the map invites a comparison the model never made. *Pulled apart though alike*
+is a likeness the layout hides. Clicking a pair walks the chain between them.
+
+Sampling is deterministic: the same projection always draws the same diagram, so
+two of them can be compared. Up to about 120k pairs every pair is measured.
+
+### The chain between two images
+
+*Similar images* answers what else looks like one picture, *Compare* answers how
+related two of them are, and neither says what sits in between. Pick two with
+the Compare tray and the chain walks the nearest-neighbour graph from one to the
+other.
+
+Edges are weighted by `1 - similarity` rather than counted as hops, so among the
+shortest routes the one whose individual steps are tightest wins. Each step
+shows its own similarity, and it is normal for every step to beat the similarity
+of the two ends by a wide margin: on the reference collection a Tiepolo Madonna
+and a dead gladiator sit at 0.379, joined by three hops of 0.62, 0.72 and 0.62.
+The pictures in between are what the model used to get across.
+
+The route depends on k. A small k forces long detours and can leave the two
+images in separate components, and the panel says so - naming the sizes of the
+two components - rather than returning an empty list that would read as "these
+images are unrelated".
+
+### Verified
+
+`tests/test_shepard_and_chains.py` plants a gradient of sixty images, lays it
+out twice - once faithfully, once with the coordinates shuffled - and asserts
+that the measurement can tell the two apart: stress rises, rank correlation
+collapses towards zero. The chain is checked for crossing the middle of the
+gradient, for links that are real neighbour similarities, for a route that
+cannot grow longer as k grows, and for explaining itself when the graph is too
+sparse to connect the two ends.
+
+384 tests pass, `ruff` reports no findings, every `app/js` file passes
+`node --check`, and both panels were driven in the running application against
+the 165-image collection.
+
 ## v6.9.1 - the README had stopped listing the models
 
 A reader's question, and the answer was embarrassing: EmbeddingGemma 2 was

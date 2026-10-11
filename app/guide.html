@@ -267,6 +267,56 @@
               notices A. That usually means A is unusual and B is a crowd-pleaser.
             </p>
           </article>
+
+          <article class="gd-card">
+            <h3>How honest is the map?</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis &middot; Map honesty</p>
+            <p class="gd-q">"How much is this layout making up?"</p>
+            <p>
+              Every projection flattens a space of hundreds of dimensions onto a page, and something always gets
+              bent. This measures how much. For a sample of image pairs it compares the distance the model sees with
+              the distance the map shows, and draws the two against each other. A faithful map produces a narrow
+              rising band; a distorted one produces a cloud.
+            </p>
+            <p>
+              Two numbers come with it. <strong>Rank correlation</strong> says how often the map gets the
+              <em>order</em> of two distances right &mdash; whether what looks closer really is closer.
+              <strong>Stress</strong> says how much it bends them: near 0 the distances can be read directly, above
+              about 0.2 the layout is also telling a story of its own, and the right response is to read
+              neighbourhoods rather than gaps.
+            </p>
+            <p>
+              The two lists under the plot are the pairs the map describes worst, and they fail in opposite
+              directions. <em>Drawn closer than they are</em> is the dangerous one: the map invites a comparison the
+              model never made. <em>Pulled apart though alike</em> is the opposite &mdash; a likeness the layout
+              hides, and a good reason to open the neighbour graph. Clicking a pair walks the chain between them.
+            </p>
+          </article>
+
+          <article class="gd-card">
+            <h3>The chain between two images</h3>
+            <p class="gd-where">Embedding Projection &middot; Analysis &middot; Chain</p>
+            <p class="gd-q">"What lies between these two?"</p>
+            <p>
+              <em>Similar images</em> answers what else looks like one picture, and <em>Compare</em> answers how
+              related two of them are. Neither says what sits in between. Pick two images with the Compare tray and
+              the chain walks the nearest-neighbour graph from one to the other, showing every step: usually five or
+              six pictures that turn the first into the second.
+            </p>
+            <p>
+              Each step carries the similarity of that single hop, and it is normal for every hop to be far higher
+              than the similarity of the two ends. That is the point: two works at 0.38 can be joined by a run of
+              0.7 steps, and the pictures in between are what the model used to get across &mdash; a shared subject,
+              a palette, a way of placing a figure on the canvas.
+            </p>
+            <p>
+              Two things to keep in mind. The route depends on <strong>k</strong>: a small k forces long detours and
+              can leave the two images in separate parts of the graph, in which case the panel says so instead of
+              implying there is no relationship. And the chain is the cheapest route through the graph, not the only
+              one &mdash; a different k will often find another, equally honest.
+            </p>
+          </article>
+
         </div>
       </section>
 

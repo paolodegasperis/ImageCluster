@@ -20,6 +20,7 @@ from .analysis import (
 )
 from .app_config import clustering_defaults, search_defaults, view_defaults
 from .app_config import get as config_get
+from .chains import similarity_chain
 from .config_store import apply_hf_token_to_environment, remove_hf_token, set_hf_token
 from .dependency_check import check_dependencies, optional_dependency_report, pytorch_install_advice
 from .diagnostics import collect_system_report
@@ -53,7 +54,9 @@ from .schemas import (
     NeighborGraphRequest,
     OutlierRequest,
     SemanticAxisPreviewRequest,
+    ShepardRequest,
     SimilarImagesRequest,
+    SimilarityChainRequest,
 )
 from .search import list_search_indexes, run_text_search
 from .search.schemas import RebuildSearchIndexRequest, TextSearchRequest
@@ -64,6 +67,7 @@ from .semantic import (
     distinguish,
     semantic_axis_preview,
 )
+from .shepard import shepard_diagram
 from .version import __app_name__, __version__
 from .views import mosaic_view, neighbor_graph_view, projection_supports_graph, validated_projection
 
@@ -344,6 +348,31 @@ def analysis_outliers(req: OutlierRequest) -> dict:
     """Images ranked by how isolated they are from the rest of the collection."""
     try:
         return outlier_ranking(req.projection_path, k=req.k, top_k=req.top_k)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/analysis/shepard")
+def analysis_shepard(req: ShepardRequest) -> dict:
+    """How much the 2D map distorts the distances it came from."""
+    try:
+        return shepard_diagram(req.projection_path, sample_pairs=req.sample_pairs, worst=req.worst)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/analysis/chain")
+def analysis_chain(req: SimilarityChainRequest) -> dict:
+    """The shortest chain of neighbours linking two images."""
+    try:
+        return similarity_chain(
+            req.projection_path,
+            from_path=req.from_path,
+            from_index=req.from_index,
+            to_path=req.to_path,
+            to_index=req.to_index,
+            k=req.k,
+        )
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

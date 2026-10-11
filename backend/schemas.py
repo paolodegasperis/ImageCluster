@@ -94,6 +94,30 @@ class MosaicRequest(BaseModel):
     algorithm: str = Field(default="auto", pattern="^(auto|optimal|split)$")
 
 
+class ShepardRequest(BaseModel):
+    """How faithfully the 2D map reproduces the embedding space."""
+
+    projection_path: str
+    # Pairs to measure. Every pair is used when the collection is small enough;
+    # above that a fixed-seed sample keeps the request fast and the picture
+    # reproducible.
+    sample_pairs: int = Field(default=120_000, ge=1_000, le=400_000)
+    worst: int = Field(default=8, ge=0, le=50)
+
+
+class SimilarityChainRequest(BaseModel):
+    """The shortest route between two images through the neighbour graph."""
+
+    projection_path: str
+    from_path: str | None = Field(default=None)
+    from_index: int | None = Field(default=None, ge=0)
+    to_path: str | None = Field(default=None)
+    to_index: int | None = Field(default=None, ge=0)
+    # The graph the route runs on: a smaller k forces longer detours and can
+    # leave the two images in separate components altogether.
+    k: int = Field(default=6, ge=1, le=50)
+
+
 class NeighborGraphRequest(BaseModel):
     """k-nearest-neighbour graph over the embeddings behind a projection."""
 

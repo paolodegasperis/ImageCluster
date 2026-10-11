@@ -18,6 +18,8 @@ ImageCluster is a local web application for exploring image collections through 
 - **Duplicate detection** - find images that are effectively the same picture: re-saves, crops, colour variants.
 - **Outlier ranking** - find the images least like anything else, which is usually where cataloguing errors hide.
 - **Compare two images** - pick any two and see exactly how they relate: the similarity, where each ranks in the other's neighbour list, and the neighbours they share.
+- **Map honesty** - measure how much the 2D map distorts the space it came from. Every pair of images is measured twice, by the model and by the map, and the two are drawn against each other; the pairs the layout describes worst are named, in both directions.
+- **The chain between two images** - pick two pictures and walk the shortest route between them through the nearest-neighbour graph. Five or six images that turn the first into the second, each step carrying its own similarity.
 - **Multiple embedding models** — choose from a curated set of vision-language models (OpenCLIP, SigLIP, CLIP, DINOv2, MetaCLIP, EVA-CLIP, EmbeddingGemma and more), each with different strengths.
 - **Fully local** — no cloud account, no API key required for basic use. Your images never leave your computer.
 

@@ -690,3 +690,237 @@ if (typeof originalIngestForCompare === 'function') {
 }
 
 renderCompareTray();
+
+// --------------------------------------------------------------------------
+// 1.5 Map honesty — the Shepard diagram
+//
+// Every projection distorts; none of them says so. This measures the distortion
+// directly: for a sample of pairs, the distance the model sees against the
+// distance the map shows. A faithful layout draws a narrow rising band, and
+// everything off that band is a pair the map describes wrongly.
+//
+// The response carries a density grid rather than the raw pairs — 120k points
+// would be a megabyte of JSON rendered as one dark smudge — so the canvas paints
+// cells whose opacity follows the count.
+
+function shepardVerdict(stress) {
+  if (stress === null || stress === undefined) return 'Not enough comparable pairs to judge.';
+  if (stress < 0.1) return 'Faithful: distances on this map can be read as distances in the model.';
+  if (stress < 0.2) return 'Usable, with care: the broad shape is right, individual gaps are not.';
+  if (stress < 0.35) return 'Distorted: read neighbourhoods, not distances.';
+  return 'Heavily distorted: this layout is largely its own arrangement. Use the neighbour graph for real proximity.';
+}
+
+function drawShepard(data) {
+  const canvas = $('shepardCanvas');
+  if (!canvas) return;
+  const context = canvas.getContext('2d');
+  const size = canvas.width;
+  const pad = 46;
+  const plot = size - pad * 2;
+  const css = getComputedStyle(document.body);
+  const ink = (css.getPropertyValue('--text') || '').trim() || '#222';
+  const faint = (css.getPropertyValue('--muted') || '').trim() || '#888';
+
+  context.clearRect(0, 0, size, size);
+
+  const grid = data.grid || [];
+  const bins = data.grid_size || grid.length || 1;
+  let peak = 1;
+  for (const row of grid) {
+    for (const value of row) if (value > peak) peak = value;
+  }
+  const cell = plot / bins;
+
+  // Log scaling: the density of a Shepard plot spans orders of magnitude, and a
+  // linear ramp would show the bulk while hiding every outlying pair — which
+  // are the ones worth seeing.
+  const weightOf = value => (value <= 0 ? 0 : Math.log1p(value) / Math.log1p(peak));
+
+  for (let row = 0; row < grid.length; row += 1) {
+    for (let col = 0; col < grid[row].length; col += 1) {
+      const weight = weightOf(grid[row][col]);
+      if (weight <= 0) continue;
+      context.fillStyle = 'rgba(37, 99, 235, ' + (0.08 + weight * 0.92).toFixed(3) + ')';
+      // Row 0 holds the shortest embedding distances, drawn at the bottom.
+      context.fillRect(pad + col * cell, pad + plot - (row + 1) * cell, cell + 0.5, cell + 0.5);
+    }
+  }
+
+  context.strokeStyle = faint;
+  context.lineWidth = 1;
+  context.strokeRect(pad, pad, plot, plot);
+
+  // What a proportional map would draw, after the one rescaling that makes two
+  // different distance scales comparable at all.
+  context.save();
+  context.setLineDash([5, 4]);
+  context.strokeStyle = 'rgba(220, 38, 38, 0.75)';
+  context.beginPath();
+  context.moveTo(pad, pad + plot);
+  context.lineTo(pad + plot, pad);
+  context.stroke();
+  context.restore();
+
+  context.fillStyle = ink;
+  context.font = '12px system-ui, sans-serif';
+  context.textAlign = 'center';
+  context.fillText('distance on the map', pad + plot / 2, size - 14);
+  context.save();
+  context.translate(15, pad + plot / 2);
+  context.rotate(-Math.PI / 2);
+  context.fillText('distance in the model', 0, 0);
+  context.restore();
+
+  context.fillStyle = faint;
+  context.font = '11px system-ui, sans-serif';
+  context.textAlign = 'left';
+  context.fillText('above the line: the map hides a likeness', pad + 6, pad + 16);
+  context.textAlign = 'right';
+  context.fillText('below: the map invents one', pad + plot - 6, pad + plot - 8);
+}
+
+function shepardPairList(title, note, pairs) {
+  if (!pairs || !pairs.length) return '';
+  const rows = pairs.map(pair => {
+    const key = pair.a.relative_path + '|' + pair.b.relative_path;
+    return '<li>'
+      + '<button class="link-btn" type="button" data-chain-pair="' + escapeHtml(key) + '"'
+      + ' title="Put this pair in the Compare tray and walk the chain between them">'
+      + escapeHtml(pair.a.filename) + ' &harr; ' + escapeHtml(pair.b.filename) + '</button> '
+      + '<span class="small muted">similarity ' + pair.similarity.toFixed(3)
+      + ' · map ' + pair.map_distance.toFixed(2) + '</span></li>';
+  }).join('');
+  return '<div class="shepard-list"><h6>' + escapeHtml(title) + '</h6>'
+    + '<p class="help">' + escapeHtml(note) + '</p><ul>' + rows + '</ul></div>';
+}
+
+async function runShepard() {
+  if (!analysisReady('shepardStatus')) return;
+  setText('shepardStatus', 'Measuring...');
+  try {
+    const data = await analysisRequest('/api/analysis/shepard', {});
+    const wrap = $('shepardWrap');
+    if (wrap) wrap.hidden = false;
+    drawShepard(data);
+    const rho = data.rank_correlation === null ? '—' : data.rank_correlation.toFixed(3);
+    const stress = data.stress === null ? '—' : data.stress.toFixed(3);
+    setText('shepardStatus',
+      data.pairs.toLocaleString() + (data.exhaustive ? ' pairs (every pair)' : ' pairs (sampled)')
+      + ' · rank correlation ' + rho + ' · stress ' + stress);
+    setHTML('shepardSide',
+      '<p class="help"><strong>' + escapeHtml(shepardVerdict(data.stress)) + '</strong></p>'
+      + '<p class="help">Rank correlation says how often the map gets the <em>order</em> of two distances right.'
+      + ' Stress says how much it bends them: 0 would be a perfect map, above 0.2 the layout is also telling'
+      + ' a story of its own. The dashed line is what a proportional map would draw.</p>'
+      + (data.skipped_images
+        ? '<p class="help">' + data.skipped_images + ' image(s) skipped: no usable vector or position.</p>'
+        : ''));
+    setHTML('shepardResults',
+      shepardPairList('Drawn closer than they are',
+        'The map invites a comparison the model never made.', data.compressed)
+      + shepardPairList('Pulled apart though alike',
+        'Likenesses the map hides — worth opening in the neighbour graph.', data.stretched));
+    wireShepardPairs();
+  } catch (err) {
+    setText('shepardStatus', 'Measurement failed: ' + err.message);
+  }
+}
+
+function wireShepardPairs() {
+  document.querySelectorAll('[data-chain-pair]').forEach(button => {
+    button.addEventListener('click', () => {
+      const pair = button.dataset.chainPair.split('|');
+      clearComparison();
+      addToComparison(pair[0]);
+      addToComparison(pair[1]);
+      showAnalysisTool('chain');
+      runChain();
+    });
+  });
+}
+
+// --------------------------------------------------------------------------
+// 1.6 The chain between two images
+//
+// Similar images answers "what else looks like this?" and Compare answers "how
+// related are these two?". Neither says what lies between them. The chain walks
+// the neighbour graph from one image to the other, so a similarity of 0.38
+// becomes the six pictures that carry one into the other.
+
+async function runChain() {
+  if (!analysisReady('chainStatus')) return;
+  if (!comparePicks.a || !comparePicks.b) {
+    setText('chainStatus', 'Pick two images first: the Compare tray appears as soon as you add one.');
+    return;
+  }
+  setText('chainStatus', 'Walking the graph...');
+  setHTML('chainResults', '');
+  try {
+    const data = await analysisRequest('/api/analysis/chain', {
+      from_path: comparePicks.a.relative_path,
+      to_path: comparePicks.b.relative_path,
+      k: Number(($('chainK') || {}).value || 6),
+    });
+    renderChain(data);
+  } catch (err) {
+    setText('chainStatus', 'Chain failed: ' + err.message);
+  }
+}
+
+function renderChain(data) {
+  if (!data.connected) {
+    setText('chainStatus', 'No chain at k=' + data.k);
+    setHTML('chainResults', '<p class="help">' + escapeHtml(data.reason) + '</p>');
+    return;
+  }
+  setText('chainStatus',
+    data.hops + (data.hops === 1 ? ' step' : ' steps') + ' at k=' + data.k
+    + ' · the two images are ' + data.direct_similarity.toFixed(3) + ' similar directly'
+    + ' · weakest link ' + data.weakest_link.toFixed(3));
+
+  // Images and links alternate, so each similarity sits under the step it
+  // describes rather than beside an image it only half belongs to.
+  const parts = [];
+  data.steps.forEach((step, index) => {
+    const role = index === 0 ? 'from' : (index === data.steps.length - 1 ? 'to' : '');
+    parts.push('<figure class="chain-step' + (role ? ' chain-end' : '') + '"'
+      + ' data-path="' + escapeHtml(step.relative_path) + '">'
+      // No lazy loading: a chain is a dozen images at most, it lives inside the
+      // dock's own scroller, and deferring them leaves the strip blank there.
+      + '<img src="' + escapeHtml(thumbUrl(step, 140)) + '" alt="" />'
+      + '<figcaption>' + escapeHtml(step.filename)
+      + (role ? '<span class="chain-role">' + role + '</span>' : '')
+      + '</figcaption></figure>');
+    if (index < data.links.length) {
+      parts.push('<div class="chain-link" title="Cosine similarity between these two neighbours">'
+        + '<span class="chain-arrow">→</span>'
+        + '<span class="mono">' + data.links[index].toFixed(3) + '</span></div>');
+    }
+  });
+  setHTML('chainResults', '<div class="chain-strip">' + parts.join('') + '</div>');
+
+  // The same interaction contract as every other panel: click focuses the image
+  // on the plot, double-click opens the preview.
+  document.querySelectorAll('#chainResults .chain-step').forEach(figure => {
+    const path = figure.dataset.path;
+    figure.addEventListener('click', () => focusSearchResult(path));
+    figure.addEventListener('dblclick', () => {
+      const row = state.rows.find(item => item.relative_path === path);
+      if (row) openImagePreview(row);
+    });
+  });
+}
+
+const shepardRunBtn = $('shepardRunBtn');
+if (shepardRunBtn) shepardRunBtn.addEventListener('click', runShepard);
+const chainRunBtn = $('chainRunBtn');
+if (chainRunBtn) chainRunBtn.addEventListener('click', runChain);
+const chainFromTrayBtn = $('chainFromTrayBtn');
+if (chainFromTrayBtn) {
+  chainFromTrayBtn.addEventListener('click', () => {
+    if (typeof selectDockPane === 'function') selectDockPane('analysis', true);
+    showAnalysisTool('chain');
+    runChain();
+  });
+}

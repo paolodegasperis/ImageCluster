@@ -306,6 +306,10 @@
                         title="Find images that are effectively the same picture — re-saves, crops, colour variants">Duplicates</button>
                 <button type="button" data-analysis-tool="outliers"
                         title="Find the images least like anything else in the collection">Outliers</button>
+                <button type="button" data-analysis-tool="shepard"
+                        title="Measure how much the 2D map distorts the distances it came from">Map honesty</button>
+                <button type="button" data-analysis-tool="chain"
+                        title="Show the shortest chain of neighbours linking two images">Chain</button>
               </div>
               <div class="dc-spacer"></div>
               <span class="small muted">Both read the stored embeddings — no model is loaded.</span>
@@ -339,6 +343,37 @@
               </div>
               <div id="outlierStatus" class="small dock-summary">Not scanned yet.</div>
               <div id="outlierResults" class="analysis-host"></div>
+            </div>
+
+            <div data-analysis-panel="shepard" hidden>
+              <div class="dock-controls sub-controls">
+                <span class="small muted">Every pair of images, measured twice: how far apart the model puts them, and how far apart the map does.</span>
+                <div class="dc-spacer"></div>
+                <button class="btn btn-sm" type="button" id="shepardRunBtn"
+                        title="Compare embedding distances with map distances across the collection">Measure the map</button>
+              </div>
+              <div id="shepardStatus" class="small dock-summary">Not measured yet.</div>
+              <div class="shepard-wrap" id="shepardWrap" hidden>
+                <canvas id="shepardCanvas" width="460" height="460"
+                        aria-label="Shepard diagram: embedding distance against map distance"></canvas>
+                <div class="shepard-side" id="shepardSide"></div>
+              </div>
+              <div id="shepardResults" class="analysis-host"></div>
+            </div>
+
+            <div data-analysis-panel="chain" hidden>
+              <div class="dock-controls sub-controls">
+                <div class="dc-field" title="The neighbour graph the route runs on. A smaller k forces longer detours and can leave two images unconnected; a larger one makes the jumps bolder.">
+                  <span class="lbl">Neighbours (k)</span>
+                  <input class="input mono" id="chainK" type="number" min="1" max="50" value="6" />
+                </div>
+                <button class="btn btn-sm" type="button" id="chainRunBtn"
+                        title="Find the shortest chain of neighbours between the two picked images">Find the chain</button>
+                <div class="dc-spacer"></div>
+                <span class="small muted">Pick two images with the Compare tray, then find the chain between them.</span>
+              </div>
+              <div id="chainStatus" class="small dock-summary">Pick two images first: use the Similar button on any card, or the Compare tray.</div>
+              <div id="chainResults" class="analysis-host"></div>
             </div>
           </section>
 
@@ -531,6 +566,8 @@
       <span class="ct-hint" id="compareHint">Pick a second image</span>
       <button class="btn btn-sm" type="button" id="compareRunBtn" disabled
               title="Show how these two images relate">Compare</button>
+      <button class="btn btn-sm" type="button" id="chainFromTrayBtn" disabled
+              title="Show the shortest chain of neighbours between these two images">Chain</button>
       <button class="btn btn-icon btn-ghost btn-sm" type="button" id="compareCloseBtn"
               title="Clear the comparison tray" aria-label="Clear">&times;</button>
     </div>
