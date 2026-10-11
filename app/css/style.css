@@ -5170,3 +5170,91 @@ body.workflow-page {
   }
   .cmp-rail { border-right: 0; border-bottom: 1px solid var(--border); overflow: visible; }
 }
+
+/* --- The image query basket ---------------------------------------------- */
+/* The polarity of each image lives on its chip, not on the card that added it:
+   a card must not grow a second button for a mode nobody has entered yet. */
+.query-basket {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.qb-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.qb-title { font-size: 12px; }
+.qb-hint { min-width: 0; }
+.qb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.qb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  min-width: 0;
+  padding: 3px 6px 3px 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.qb-chip img {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.qb-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Wanted and unwanted have to be told apart without reading the sign, so the
+   chip itself carries the difference. */
+.qb-chip.is-positive { border-color: var(--accent); }
+.qb-chip.is-negative { border-color: var(--danger, #dc2626); opacity: .85; }
+.qb-pole {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  color: #fff;
+}
+.qb-chip.is-positive .qb-pole { background: var(--accent); }
+.qb-chip.is-negative .qb-pole { background: var(--danger, #dc2626); }
+.qb-remove {
+  flex: 0 0 auto;
+  /* The sheet gives every button width:100% (line 35). Without an explicit
+     width this one claimed the whole chip and squeezed the file name to
+     nothing - the same global rule that let "Open" escape its card. */
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.qb-remove:hover { color: var(--ink); }

@@ -94,6 +94,21 @@ class MosaicRequest(BaseModel):
     algorithm: str = Field(default="auto", pattern="^(auto|optimal|split)$")
 
 
+class SimilarToSetRequest(BaseModel):
+    """Search the collection with several images at once, some of them unwanted."""
+
+    projection_path: str
+    positive_paths: list[str] = Field(default_factory=list)
+    positive_indexes: list[int] = Field(default_factory=list)
+    negative_paths: list[str] = Field(default_factory=list)
+    negative_indexes: list[int] = Field(default_factory=list)
+    top_k: int = Field(default=24, ge=1, le=500)
+    # How hard the unwanted images push. 0 ignores them; above 1 the query is
+    # mostly a statement about what it is not.
+    negative_weight: float = Field(default=1.0, ge=0.0, le=2.0)
+    min_similarity: float | None = Field(default=None, ge=-1.0, le=1.0)
+
+
 class ShepardRequest(BaseModel):
     """How faithfully the 2D map reproduces the embedding space."""
 

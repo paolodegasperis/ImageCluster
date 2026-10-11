@@ -144,6 +144,7 @@ standard deviations, not cosines.
 | `POST /api/semantic/axis-preview` | Coordinates on two named axes, without re-running the projection — added v6.4 |
 | `POST /api/semantic/distinguish` | The direction between two groups, read back as words — added v6.4 |
 | `POST /api/semantic/arithmetic` | Image ± phrases, ranked against the collection — added v6.4 |
+| `POST /api/analysis/similar-set` | Rank the collection by likeness to several images at once, with unwanted ones subtracted - added v6.13 |
 | `POST /api/analysis/shepard` | Embedding distance against map distance over a sample of pairs, with rank correlation, Kruskal stress-1 and the worst-described pairs in each direction - added v6.10 |
 | `GET /compare` | The Compare page: pick two images from a mosaic of the collection and see everything it knows about the pair - added v6.12 |
 | `POST /api/analysis/chain` | Shortest route between two images through the k-NN graph, weighted by `1 - similarity` - added v6.10 |

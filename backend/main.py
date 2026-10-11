@@ -28,6 +28,7 @@ from .disagreement import model_disagreement
 from .encoders.registry import get_model_spec, public_model_registry
 from .exports import _safe_name, export_clusters
 from .housekeeping import THUMB_CACHE_DIR, prune_thumb_cache, startup_sweep
+from .image_query import similar_to_set
 from .image_scan import list_image_folders, scan_images
 from .jobs import cancel_job, create_clip_projection_job, get_job, list_jobs, list_projection_files
 from .pdf_export import (
@@ -57,6 +58,7 @@ from .schemas import (
     ShepardRequest,
     SimilarImagesRequest,
     SimilarityChainRequest,
+    SimilarToSetRequest,
 )
 from .search import list_search_indexes, run_text_search
 from .search.schemas import RebuildSearchIndexRequest, TextSearchRequest
@@ -353,6 +355,24 @@ def analysis_outliers(req: OutlierRequest) -> dict:
     """Images ranked by how isolated they are from the rest of the collection."""
     try:
         return outlier_ranking(req.projection_path, k=req.k, top_k=req.top_k)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/analysis/similar-set")
+def analysis_similar_set(req: SimilarToSetRequest) -> dict:
+    """Rank the collection by likeness to several images at once."""
+    try:
+        return similar_to_set(
+            req.projection_path,
+            positive_paths=req.positive_paths,
+            positive_indexes=req.positive_indexes,
+            negative_paths=req.negative_paths,
+            negative_indexes=req.negative_indexes,
+            top_k=req.top_k,
+            negative_weight=req.negative_weight,
+            min_similarity=req.min_similarity,
+        )
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

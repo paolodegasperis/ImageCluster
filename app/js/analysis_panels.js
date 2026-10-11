@@ -36,6 +36,8 @@ function cardMarkup(item, options = {}) {
                 title="Find the images most similar to this one">Similar</button>
         <button class="btn btn-xs" type="button" data-compare-with="${escapeHtml(item.relative_path)}"
                 title="Add to the comparison tray">Compare</button>
+        <button class="btn btn-xs" type="button" data-query-add="${escapeHtml(item.relative_path)}"
+                title="Add to the image query: search with several images at once">+</button>
         <a class="search-open-link" href="${escapeHtml(imageUrl(item))}" target="_blank" rel="noopener"
            title="Open the full-resolution image in a new tab">Open</a>
       </div>
@@ -66,6 +68,12 @@ function wireCards(container) {
     button.addEventListener('click', event => {
       event.stopPropagation();
       addToComparison(button.dataset.compareWith);
+    });
+  });
+  container.querySelectorAll('[data-query-add]').forEach(button => {
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      addToQuery(button.dataset.queryAdd);
     });
   });
 }
@@ -865,3 +873,144 @@ function comparePageUrl(pathA, pathB) {
 
 const shepardRunBtn = $('shepardRunBtn');
 if (shepardRunBtn) shepardRunBtn.addEventListener('click', runShepard);
+
+// --------------------------------------------------------------------------
+// 1.7 Searching with several images
+//
+// Text search needs the thing named; Similar images needs one example, which
+// makes the search as narrow as that one picture. This asks with several at
+// once, and lets some of them be the wrong kind - the normal condition in front
+// of a visual collection being that you know what you are looking for and
+// cannot name it.
+//
+// The basket is the whole interface: a card's + puts an image in it, and the
+// polarity lives on the chip rather than on the card, so the card never grows a
+// second button for a mode nobody has entered yet.
+
+const imageQuery = new Map(); // relative_path -> 'positive' | 'negative'
+
+function addToQuery(relativePath) {
+  if (!relativePath) return;
+  if (!imageQuery.has(relativePath)) imageQuery.set(relativePath, 'positive');
+  selectDockPane('similar', true);
+  renderQueryBasket();
+}
+
+function toggleQueryPolarity(relativePath) {
+  if (!imageQuery.has(relativePath)) return;
+  imageQuery.set(relativePath, imageQuery.get(relativePath) === 'positive' ? 'negative' : 'positive');
+  renderQueryBasket();
+}
+
+function removeFromQuery(relativePath) {
+  imageQuery.delete(relativePath);
+  renderQueryBasket();
+}
+
+function clearQuery() {
+  imageQuery.clear();
+  renderQueryBasket();
+}
+
+function renderQueryBasket() {
+  const basket = $('queryBasket');
+  if (!basket) return;
+  basket.hidden = imageQuery.size === 0;
+  if (!imageQuery.size) return;
+
+  const chips = [...imageQuery.entries()].map(([path, polarity]) => {
+    const row = state.rows.find(item => item.relative_path === path);
+    const name = row ? row.filename : path;
+    const thumb = row ? thumbUrl(row, 96) : '';
+    const wanted = polarity === 'positive';
+    return `
+      <span class="qb-chip ${wanted ? 'is-positive' : 'is-negative'}" title="${escapeHtml(name)}">
+        ${thumb ? `<img src="${escapeHtml(thumb)}" alt="" />` : ''}
+        <button class="qb-pole" type="button" data-query-toggle="${escapeHtml(path)}"
+                title="${wanted ? 'Wanted: results should look like this. Click to make it unwanted.'
+                                : 'Unwanted: this is subtracted from the query. Click to make it wanted.'}">${wanted ? '+' : '−'}</button>
+        <span class="qb-name">${escapeHtml(name)}</span>
+        <button class="qb-remove" type="button" data-query-remove="${escapeHtml(path)}"
+                title="Remove from the query" aria-label="Remove ${escapeHtml(name)}">&times;</button>
+      </span>`;
+  }).join('');
+  setHTML('queryChips', chips);
+
+  const wanted = [...imageQuery.values()].filter(v => v === 'positive').length;
+  $('querySearchBtn').disabled = wanted === 0;
+  setText('queryHint', wanted === 0
+    ? 'Set at least one image to + : the query needs something to be like.'
+    : `${wanted} wanted, ${imageQuery.size - wanted} unwanted`);
+
+  $('queryChips').querySelectorAll('[data-query-toggle]').forEach(button => {
+    button.addEventListener('click', () => toggleQueryPolarity(button.dataset.queryToggle));
+  });
+  $('queryChips').querySelectorAll('[data-query-remove]').forEach(button => {
+    button.addEventListener('click', () => removeFromQuery(button.dataset.queryRemove));
+  });
+}
+
+async function runImageQuery() {
+  if (!analysisReady('similarStatus')) return;
+  const positives = [...imageQuery.entries()].filter(([, p]) => p === 'positive').map(([path]) => path);
+  const negatives = [...imageQuery.entries()].filter(([, p]) => p === 'negative').map(([path]) => path);
+  if (!positives.length) return;
+
+  setText('similarStatus', 'Searching...');
+  setHTML('similarResults', '');
+  try {
+    const data = await analysisRequest('/api/analysis/similar-set', {
+      positive_paths: positives,
+      negative_paths: negatives,
+      top_k: Number($('similarTopK')?.value || ANALYSIS_DEFAULTS.similarTopK),
+    });
+    renderImageQuery(data);
+  } catch (err) {
+    setText('similarStatus', `Search failed: ${err.message}`);
+    setHTML('similarResults', '');
+  }
+}
+
+function renderImageQuery(data) {
+  state.similarQuery = null;
+  state.similarResults = data.results;
+  state.similarPaths = new Set([
+    ...data.positives.map(r => r.relative_path),
+    ...data.results.map(r => r.relative_path),
+  ]);
+
+  // Agreement is the length of the average before it was normalised away: near
+  // 1 the chosen images point the same way, near 0 they pull apart and the
+  // results will be weak whatever they are.
+  const agreement = data.agreement >= 0.8 ? 'the images agree closely'
+    : (data.agreement >= 0.6 ? 'the images agree broadly' : 'the images pull in different directions');
+  const subtracted = data.negatives.length
+    ? ' · scores are lower across the board after a subtraction: read the order, not the value'
+    : '';
+  setText('similarStatus',
+    `${data.count} of ${data.searched} images · ${data.positives.length} wanted`
+    + (data.negatives.length ? `, ${data.negatives.length} unwanted` : '')
+    + ` · ${agreement} (${data.agreement.toFixed(2)})${subtracted}`);
+
+  const cards = data.results.map(item => cardMarkup(item, {
+    meta: [`#${item.rank}`, item.score.toFixed(4), item.closest_to ? `closest to ${item.closest_to}` : ''].filter(Boolean),
+  })).join('');
+  setHTML('similarResults', `<div class="gallery-grid analysis-grid">${cards}</div>`);
+  wireCards($('similarResults'));
+  draw();
+}
+
+const querySearchBtn = $('querySearchBtn');
+if (querySearchBtn) querySearchBtn.addEventListener('click', runImageQuery);
+const queryClearBtn = $('queryClearBtn');
+if (queryClearBtn) queryClearBtn.addEventListener('click', clearQuery);
+
+// A new projection invalidates the basket: those paths may not exist in it.
+const originalIngestForQuery = window.ingestRows;
+if (typeof originalIngestForQuery === 'function') {
+  window.ingestRows = async function ingestRowsClearingQuery(...args) {
+    imageQuery.clear();
+    renderQueryBasket();
+    return originalIngestForQuery(...args);
+  };
+}

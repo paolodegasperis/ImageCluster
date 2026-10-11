@@ -306,6 +306,18 @@
               <div class="dc-spacer"></div>
               <span class="small muted">Double-click any image on the plot to search from it.</span>
             </div>
+            <div class="query-basket" id="queryBasket" hidden>
+              <div class="qb-head">
+                <strong class="qb-title">Search with several images</strong>
+                <span class="qb-hint small muted" id="queryHint">Click <b>+</b> on any result to add it. Set an image to &minus; to search for what is <em>unlike</em> it.</span>
+                <span class="dc-spacer"></span>
+                <button class="btn btn-sm" type="button" id="querySearchBtn"
+                        title="Rank the collection by likeness to every image marked +, with the images marked - subtracted">Search</button>
+                <button class="btn btn-sm btn-ghost" type="button" id="queryClearBtn"
+                        title="Empty the query">Clear</button>
+              </div>
+              <div class="qb-chips" id="queryChips"></div>
+            </div>
             <div id="similarStatus" class="small dock-summary">Double-click an image on the plot, or use the Similar button on any card.</div>
             <div id="similarResults" class="analysis-host"></div>
           </section>

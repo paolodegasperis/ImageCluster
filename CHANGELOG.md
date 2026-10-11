@@ -1,5 +1,56 @@
 # Changelog
 
+## v6.13.0 - asking with pictures instead of words
+
+Text search needs the thing named. *Similar images* needs one example, which
+makes the search as narrow as that one picture: ask with a Madonna and you get
+Madonnas, including the ones that share only the gold ground.
+
+The gap between those two is the normal condition in front of a visual
+collection - knowing what you are looking for and being unable to name it. A
+palette, a kind of light, a way of placing a figure on the canvas. Three
+examples say it where no phrase does.
+
+Press **+** on any result and it joins the query; the collection is then ranked
+by the direction those images have in common. Set one to **&minus;** and it is
+subtracted instead: what you want, with the part you did not want removed. It is
+the same operation `Lenses` already performs on phrases, applied to pictures.
+
+Two readings come back with the results, because without them the numbers
+mislead:
+
+*agreement*
+    the length of the chosen images' average before it was normalised away. Near
+    1 they point the same way; low, they are pulling apart, and the results will
+    be weak whatever they are. A query built from unrelated images now says so
+    instead of returning a confident wrong list.
+
+*after a subtraction, read the order, not the value*
+    removing a direction leaves a query that points at nothing in particular, so
+    every score drops. On the reference collection the same three Madonnas score
+    0.70 alone and 0.18 once a battle scene is subtracted, while the ranking
+    stays meaningful.
+
+Each result also names which of the chosen images it is closest to, because with
+a query built from several, "why did this come back?" is a real question.
+
+Refusals rather than nonsense: a query with nothing wanted, an image on both
+sides at once, more than 24 images (past which the average is the collection's
+own centre and the query says nothing), and a query that cancels itself out -
+returning the nearest images to a near-zero vector would be returning noise with
+confident scores attached.
+
+The polarity lives on the chip in the query basket, not on the card that added
+it: a card must not grow a second button for a mode nobody has entered yet.
+
+### One more global-rule casualty
+
+The chip's remove button inherited `width: 100%` from the sheet's `select,
+input, button` rule and claimed the whole chip, squeezing the file name to
+nothing. It is the same rule that let `Open` escape its card in v6.12.0. Both
+are now pinned explicitly; the rule itself is left alone, since changing it
+would touch every control in the application.
+
 ## v6.12.0 - comparing two images becomes a place, and the labels stay inside their boxes
 
 ### A page of its own
